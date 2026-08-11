@@ -765,10 +765,13 @@ func (m *model) createSelected() {
 	if selected == nil || strings.TrimSpace(m.input) == "" {
 		return
 	}
-	_, _, err := m.service.Create(context.Background(), core.Request{
+	change, err := m.service.PlanCreate(context.Background(), core.Request{
 		Harness: selected.Harness, Kind: selected.Kind, Scope: selected.Scope,
 		Name: strings.TrimSpace(m.input), Project: m.project,
-	}, false)
+	})
+	if err == nil {
+		_, err = m.service.Apply(context.Background(), change)
+	}
 	if err != nil {
 		m.status = err.Error()
 		m.mode = modeList
@@ -784,7 +787,10 @@ func (m *model) deleteSelected() {
 	if selected == nil {
 		return
 	}
-	_, _, err := m.service.Delete(context.Background(), *selected, false)
+	change, err := m.service.PlanDelete(context.Background(), *selected)
+	if err == nil {
+		_, err = m.service.Apply(context.Background(), change)
+	}
 	if err != nil {
 		m.status = err.Error()
 		m.mode = modeList
@@ -800,7 +806,10 @@ func (m *model) toggleSelected(enabled bool) {
 	if selected == nil {
 		return
 	}
-	_, _, err := m.service.Toggle(context.Background(), *selected, enabled, false)
+	change, err := m.service.PlanToggle(context.Background(), *selected, enabled)
+	if err == nil {
+		_, err = m.service.Apply(context.Background(), change)
+	}
 	if err != nil {
 		m.status = err.Error()
 		return

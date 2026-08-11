@@ -201,69 +201,49 @@ func EditablePath(resource core.Resource) string {
 	return path
 }
 
-func (s *Service) Create(ctx context.Context, request core.Request, dryRun bool) (core.ChangeSet, core.ApplyResult, error) {
+func (s *Service) PlanCreate(ctx context.Context, request core.Request) (core.ChangeSet, error) {
 	driver, err := s.Registry.Driver(request.Harness)
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
 	request.Project, err = normalizeProject(request.Project)
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
-	change, err := driver.PlanCreate(ctx, request)
-	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
-	}
-	result, err := s.apply(ctx, change, dryRun)
-	return change, result, err
+	return driver.PlanCreate(ctx, request)
 }
 
-func (s *Service) Update(ctx context.Context, resource core.Resource, content []byte, dryRun bool) (core.ChangeSet, core.ApplyResult, error) {
+func (s *Service) PlanUpdate(ctx context.Context, resource core.Resource, content []byte) (core.ChangeSet, error) {
 	driver, err := s.Registry.Driver(resource.Harness)
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
-	change, err := driver.PlanUpdate(ctx, resource, content)
-	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
-	}
-	result, err := s.apply(ctx, change, dryRun)
-	return change, result, err
+	return driver.PlanUpdate(ctx, resource, content)
 }
 
-func (s *Service) Delete(ctx context.Context, resource core.Resource, dryRun bool) (core.ChangeSet, core.ApplyResult, error) {
+func (s *Service) PlanDelete(ctx context.Context, resource core.Resource) (core.ChangeSet, error) {
 	driver, err := s.Registry.Driver(resource.Harness)
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
-	change, err := driver.PlanDelete(ctx, resource)
-	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
-	}
-	result, err := s.apply(ctx, change, dryRun)
-	return change, result, err
+	return driver.PlanDelete(ctx, resource)
 }
 
-func (s *Service) Toggle(ctx context.Context, resource core.Resource, enabled, dryRun bool) (core.ChangeSet, core.ApplyResult, error) {
+func (s *Service) PlanToggle(ctx context.Context, resource core.Resource, enabled bool) (core.ChangeSet, error) {
 	if isDisabledResource(resource) {
 		if !enabled {
-			return core.ChangeSet{}, core.ApplyResult{}, fmt.Errorf("resource is already disabled")
+			return core.ChangeSet{}, fmt.Errorf("resource is already disabled")
 		}
-		return s.enableStored(ctx, resource, dryRun)
+		return s.planEnableStored(ctx, resource)
 	}
 	if !enabled {
-		return s.disableStored(ctx, resource, dryRun)
+		return s.planDisableStored(ctx, resource)
 	}
 	driver, err := s.Registry.Driver(resource.Harness)
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
-	change, err := driver.PlanToggle(ctx, resource, enabled)
-	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
-	}
-	result, err := s.apply(ctx, change, dryRun)
-	return change, result, err
+	return driver.PlanToggle(ctx, resource, enabled)
 }
 
 func (s *Service) Doctor(ctx context.Context, project string, filters Filters) ([]core.Diagnostic, error) {
@@ -424,7 +404,11 @@ func (s *Service) Sync(ctx context.Context, project, linkID string, dryRun bool)
 		if translateErr != nil {
 			return changes, results, translateErr
 		}
-		change, result, updateErr := s.Update(ctx, target, translated, dryRun)
+		change, updateErr := s.PlanUpdate(ctx, target, translated)
+		if updateErr != nil {
+			return changes, results, updateErr
+		}
+		result, updateErr := s.apply(ctx, change, dryRun)
 		if updateErr != nil {
 			return changes, results, updateErr
 		}
@@ -496,18 +480,17 @@ func translatePortable(source, target core.Resource, content []byte) ([]byte, er
 	return core.PrettyJSON(entry), nil
 }
 
-func (s *Service) NativeLifecycle(ctx context.Context, harness core.Harness, action, spec string, dryRun bool) (core.ChangeSet, core.ApplyResult, error) {
+func (s *Service) PlanNativeLifecycle(harness core.Harness, action, spec string) (core.ChangeSet, error) {
 	command, args, err := lifecycleCommand(harness, action, spec)
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
 	change := core.ChangeSet{
 		ID: uuid.NewString(), Summary: fmt.Sprintf("%s %s for %s", action, spec, harness), CreatedAt: time.Now().UTC(),
 		Operations: []core.Operation{{Type: core.OpCommand, Command: command, Args: args, Description: strings.Join(append([]string{command}, args...), " ")}},
 		Warnings:   []string{"native lifecycle commands may modify harness-managed caches or state outside RTS file backups"},
 	}
-	result, err := s.apply(ctx, change, dryRun)
-	return change, result, err
+	return change, nil
 }
 
 func (s *Service) Backups() ([]string, error) {
@@ -533,6 +516,10 @@ func (s *Service) Restore(ctx context.Context, backup string) (core.ApplyResult,
 		backup = filepath.Join(s.Executor.BackupRoot, backup)
 	}
 	return s.Executor.Restore(ctx, backup)
+}
+
+func (s *Service) Apply(ctx context.Context, change core.ChangeSet) (core.ApplyResult, error) {
+	return s.apply(ctx, change, false)
 }
 
 func (s *Service) apply(ctx context.Context, change core.ChangeSet, dryRun bool) (core.ApplyResult, error) {

@@ -42,9 +42,9 @@ func (s *Service) disabledStoragePath(id string) string {
 	return filepath.Join(s.disabledRoot(), "payloads", id)
 }
 
-func (s *Service) disableStored(ctx context.Context, resource core.Resource, dryRun bool) (core.ChangeSet, core.ApplyResult, error) {
+func (s *Service) planDisableStored(ctx context.Context, resource core.Resource) (core.ChangeSet, error) {
 	if resource.ReadOnly || !resource.Has(core.CanDelete) {
-		return core.ChangeSet{}, core.ApplyResult{}, fmt.Errorf("resource cannot be disabled: %s", resource.Path)
+		return core.ChangeSet{}, fmt.Errorf("resource cannot be disabled: %s", resource.Path)
 	}
 	id := resource.ID
 	if id == "" {
@@ -52,9 +52,9 @@ func (s *Service) disableStored(ctx context.Context, resource core.Resource, dry
 	}
 	manifestPath := s.disabledManifestPath(id)
 	if _, err := os.Lstat(manifestPath); err == nil {
-		return core.ChangeSet{}, core.ApplyResult{}, fmt.Errorf("disabled entry already exists: %s", id)
+		return core.ChangeSet{}, fmt.Errorf("disabled entry already exists: %s", id)
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
 	entry := disabledEntry{
 		Version: disabledVersion, ID: id, Resource: resource, DisabledAt: time.Now().UTC(),
@@ -63,28 +63,28 @@ func (s *Service) disableStored(ctx context.Context, resource core.Resource, dry
 	if resource.Kind == core.KindMCP && resource.Locator != "" {
 		content, err := s.Read(resource)
 		if err != nil {
-			return core.ChangeSet{}, core.ApplyResult{}, err
+			return core.ChangeSet{}, err
 		}
 		entry.Embedded = true
 		entry.Content = content
 		driver, err := s.Registry.Driver(resource.Harness)
 		if err != nil {
-			return core.ChangeSet{}, core.ApplyResult{}, err
+			return core.ChangeSet{}, err
 		}
 		remove, err := driver.PlanDelete(ctx, resource)
 		if err != nil {
-			return core.ChangeSet{}, core.ApplyResult{}, err
+			return core.ChangeSet{}, err
 		}
 		operations = append(operations, remove.Operations...)
 	} else {
 		if _, err := os.Lstat(resource.Path); err != nil {
-			return core.ChangeSet{}, core.ApplyResult{}, err
+			return core.ChangeSet{}, err
 		}
 		entry.StoragePath = s.disabledStoragePath(id)
 		if _, err := os.Lstat(entry.StoragePath); err == nil {
-			return core.ChangeSet{}, core.ApplyResult{}, fmt.Errorf("disabled payload already exists: %s", entry.StoragePath)
+			return core.ChangeSet{}, fmt.Errorf("disabled payload already exists: %s", entry.StoragePath)
 		} else if !errors.Is(err, os.ErrNotExist) {
-			return core.ChangeSet{}, core.ApplyResult{}, err
+			return core.ChangeSet{}, err
 		}
 		operations = append(operations, core.Operation{
 			Type: core.OpMove, Source: resource.Path, Path: entry.StoragePath,
@@ -93,7 +93,7 @@ func (s *Service) disableStored(ctx context.Context, resource core.Resource, dry
 	}
 	manifest, err := json.MarshalIndent(entry, "", "  ")
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
 	operations = append([]core.Operation{{
 		Type: core.OpWrite, Path: manifestPath, Content: append(manifest, '\n'), Mode: 0o600,
@@ -103,53 +103,52 @@ func (s *Service) disableStored(ctx context.Context, resource core.Resource, dry
 		ID: uuid.NewString(), Summary: "disable " + resource.Name,
 		CreatedAt: time.Now().UTC(), Operations: operations,
 	}
-	result, err := s.apply(ctx, change, dryRun)
-	return change, result, err
+	return change, nil
 }
 
-func (s *Service) enableStored(ctx context.Context, resource core.Resource, dryRun bool) (core.ChangeSet, core.ApplyResult, error) {
+func (s *Service) planEnableStored(ctx context.Context, resource core.Resource) (core.ChangeSet, error) {
 	manifestPath, _ := resource.Metadata[disabledManifestKey].(string)
 	entry, err := s.loadDisabledEntry(manifestPath)
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
 	manifestHash, err := core.HashFile(manifestPath)
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
 	var operations []core.Operation
 	if entry.Embedded {
 		driver, err := s.Registry.Driver(entry.Resource.Harness)
 		if err != nil {
-			return core.ChangeSet{}, core.ApplyResult{}, err
+			return core.ChangeSet{}, err
 		}
 		resources, err := driver.Discover(ctx, entry.Resource.ProjectRoot)
 		if err != nil {
-			return core.ChangeSet{}, core.ApplyResult{}, err
+			return core.ChangeSet{}, err
 		}
 		for _, candidate := range resources {
 			if candidate.Kind == entry.Resource.Kind &&
 				candidate.Scope == entry.Resource.Scope &&
 				filepath.Clean(candidate.Path) == filepath.Clean(entry.Resource.Path) &&
 				candidate.Locator == entry.Resource.Locator {
-				return core.ChangeSet{}, core.ApplyResult{}, fmt.Errorf(
+				return core.ChangeSet{}, fmt.Errorf(
 					"cannot enable %s: original embedded entry already exists", entry.Resource.Name,
 				)
 			}
 		}
 		restore, err := driver.PlanUpdate(ctx, entry.Resource, entry.Content)
 		if err != nil {
-			return core.ChangeSet{}, core.ApplyResult{}, err
+			return core.ChangeSet{}, err
 		}
 		operations = append(operations, restore.Operations...)
 	} else {
 		if _, err := os.Lstat(entry.Resource.Path); err == nil {
-			return core.ChangeSet{}, core.ApplyResult{}, fmt.Errorf("cannot enable %s: destination already exists: %s", entry.Resource.Name, entry.Resource.Path)
+			return core.ChangeSet{}, fmt.Errorf("cannot enable %s: destination already exists: %s", entry.Resource.Name, entry.Resource.Path)
 		} else if !errors.Is(err, os.ErrNotExist) {
-			return core.ChangeSet{}, core.ApplyResult{}, err
+			return core.ChangeSet{}, err
 		}
 		if _, err := os.Lstat(entry.StoragePath); err != nil {
-			return core.ChangeSet{}, core.ApplyResult{}, fmt.Errorf("disabled payload is unavailable: %w", err)
+			return core.ChangeSet{}, fmt.Errorf("disabled payload is unavailable: %w", err)
 		}
 		storedHash, _ := core.HashPath(entry.StoragePath)
 		operations = append(operations, core.Operation{
@@ -165,8 +164,7 @@ func (s *Service) enableStored(ctx context.Context, resource core.Resource, dryR
 		ID: uuid.NewString(), Summary: "enable " + entry.Resource.Name,
 		CreatedAt: time.Now().UTC(), Operations: operations,
 	}
-	result, err := s.apply(ctx, change, dryRun)
-	return change, result, err
+	return change, nil
 }
 
 func (s *Service) disabledResources(project string) ([]core.Resource, error) {

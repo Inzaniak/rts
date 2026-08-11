@@ -37,7 +37,7 @@ type app struct {
 	query   string
 }
 
-type mutation func(bool) (core.ChangeSet, core.ApplyResult, error)
+type mutation func() (core.ChangeSet, error)
 
 func Execute() error {
 	svc, err := service.Open(adapters.All())
@@ -209,8 +209,8 @@ func (a *app) addCommand() *cobra.Command {
 				Harness: harness, Kind: kind, Scope: scope, Name: positional[1],
 				Project: a.project, Content: body, Force: force,
 			}
-			return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
-				return a.service.Create(cmd.Context(), request, dry)
+			return a.runMutation(cmd, func() (core.ChangeSet, error) {
+				return a.service.PlanCreate(cmd.Context(), request)
 			})
 		},
 	}
@@ -261,8 +261,8 @@ func (a *app) editCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
-				return a.service.Update(cmd.Context(), resource, body, dry)
+			return a.runMutation(cmd, func() (core.ChangeSet, error) {
+				return a.service.PlanUpdate(cmd.Context(), resource, body)
 			})
 		},
 	}
@@ -282,8 +282,8 @@ func (a *app) removeCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
-				return a.service.Delete(cmd.Context(), resource, dry)
+			return a.runMutation(cmd, func() (core.ChangeSet, error) {
+				return a.service.PlanDelete(cmd.Context(), resource)
 			})
 		},
 	}
@@ -303,8 +303,8 @@ func (a *app) toggleCommand(enabled bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
-				return a.service.Toggle(cmd.Context(), resource, enabled, dry)
+			return a.runMutation(cmd, func() (core.ChangeSet, error) {
+				return a.service.PlanToggle(cmd.Context(), resource, enabled)
 			})
 		},
 	}
@@ -552,8 +552,8 @@ func (a *app) lifecycleCommand(action string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
-				return a.service.NativeLifecycle(cmd.Context(), harness, action, args[0], dry)
+			return a.runMutation(cmd, func() (core.ChangeSet, error) {
+				return a.service.PlanNativeLifecycle(harness, action, args[0])
 			})
 		},
 	}
@@ -573,8 +573,8 @@ func (a *app) updateCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
-					return a.service.NativeLifecycle(cmd.Context(), harness, "update", args[0], dry)
+				return a.runMutation(cmd, func() (core.ChangeSet, error) {
+					return a.service.PlanNativeLifecycle(harness, "update", args[0])
 				})
 			}
 			if a.dryRun {
@@ -640,7 +640,7 @@ func (a *app) find(ctx context.Context, id string) (core.Resource, error) {
 }
 
 func (a *app) runMutation(cmd *cobra.Command, mutate mutation) error {
-	change, _, err := mutate(true)
+	change, err := mutate()
 	if err != nil {
 		return err
 	}
@@ -663,12 +663,12 @@ func (a *app) runMutation(cmd *cobra.Command, mutate mutation) error {
 			return errors.New("cancelled")
 		}
 	}
-	appliedChange, result, err := mutate(false)
+	result, err := a.service.Apply(cmd.Context(), change)
 	if err != nil {
 		return err
 	}
 	if a.json {
-		return writeJSON(cmd.OutOrStdout(), core.NewEnvelope(map[string]any{"change": appliedChange, "result": result}))
+		return writeJSON(cmd.OutOrStdout(), core.NewEnvelope(map[string]any{"change": change, "result": result}))
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "Applied %s\nBackup: %s\n", result.TransactionID, result.BackupDir)
 	return nil
