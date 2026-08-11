@@ -638,17 +638,6 @@ func (m *model) applyFilter() {
 	m.detailOffset = 0
 }
 
-func (m *model) cycleHarness() {
-	if len(m.harnessTabs) == 0 {
-		return
-	}
-	m.selectHarness((m.harnessIndex + 1) % len(m.harnessTabs))
-}
-
-func (m *model) cycleScope() {
-	m.cycleScopeBy(1)
-}
-
 func (m *model) cycleHarnessBy(delta int) {
 	if len(m.harnessTabs) == 0 {
 		return
@@ -705,13 +694,6 @@ func (m *model) selectHarness(index int) {
 	m.mode = modeList
 	m.applyFilter()
 	m.status = "Harness: " + m.harnessTabs[m.harnessIndex].label
-}
-
-func (m *model) cycleKind() {
-	if len(m.kindTabs) == 0 {
-		return
-	}
-	m.selectKind((m.kindIndex + 1) % len(m.kindTabs))
 }
 
 func (m *model) selectKind(index int) {

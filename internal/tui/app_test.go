@@ -28,13 +28,13 @@ func TestTabbedFiltersCompose(t *testing.T) {
 		t.Fatalf("first harness tab = %q, want Claude", m.harnessTabs[1].value)
 	}
 	for m.harnessTabs[m.harnessIndex].value != core.Claude {
-		m.cycleHarness()
+		m.cycleHarnessBy(1)
 	}
 	for m.kindTabs[m.kindIndex].value != core.KindMCP {
-		m.cycleKind()
+		m.cycleKindBy(1)
 	}
 	for m.scopeTabs[m.scopeIndex].value != core.ScopeProject {
-		m.cycleScope()
+		m.cycleScopeBy(1)
 	}
 	if len(m.filtered) != 1 || m.filtered[0].Name != "docs" {
 		t.Fatalf("combined tabs returned %#v", m.filtered)
