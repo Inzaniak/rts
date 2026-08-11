@@ -207,7 +207,7 @@ func (a *app) addCommand() *cobra.Command {
 			}
 			request := core.Request{
 				Harness: harness, Kind: kind, Scope: scope, Name: positional[1],
-				Project: a.project, Content: body, File: file, Force: force,
+				Project: a.project, Content: body, Force: force,
 			}
 			return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
 				return a.service.Create(cmd.Context(), request, dry)

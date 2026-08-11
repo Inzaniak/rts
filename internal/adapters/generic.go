@@ -639,9 +639,6 @@ func creationContent(request core.Request, loc location) ([]byte, error) {
 	if len(request.Content) > 0 {
 		return request.Content, nil
 	}
-	if request.File != "" {
-		return os.ReadFile(request.File)
-	}
 	switch loc.Kind {
 	case core.KindSkill:
 		return []byte("---\nname: " + request.Name + "\ndescription: Describe when this skill should be used.\n---\n\n# " + request.Name + "\n\nAdd instructions here.\n"), nil
@@ -652,7 +649,7 @@ func creationContent(request core.Request, loc location) ([]byte, error) {
 	case core.KindSettings, core.KindHook, core.KindKeybindings, core.KindTheme, core.KindLSP:
 		return []byte("{}\n"), nil
 	default:
-		return nil, errors.New("content or --file is required for this resource kind")
+		return nil, errors.New("content is required for this resource kind")
 	}
 }
 

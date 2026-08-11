@@ -137,7 +137,6 @@ type Request struct {
 	Name    string
 	Project string
 	Content []byte
-	File    string
 	Force   bool
 }
 
