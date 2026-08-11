@@ -61,22 +61,6 @@ func findTOMLTable(raw []byte, header string) (int, int) {
 	return -1, -1
 }
 
-func ListTOMLTables(raw []byte, prefix string) []string {
-	pattern := regexp.MustCompile(`(?m)^\[` + regexp.QuoteMeta(prefix) + `\.((?:"(?:[^"\\]|\\.)*")|[A-Za-z0-9_-]+)\]\s*$`)
-	matches := pattern.FindAllSubmatch(raw, -1)
-	result := make([]string, 0, len(matches))
-	for _, match := range matches {
-		name := string(match[1])
-		if strings.HasPrefix(name, `"`) {
-			if decoded, err := strconv.Unquote(name); err == nil {
-				name = decoded
-			}
-		}
-		result = append(result, name)
-	}
-	return result
-}
-
 func renderTOMLTable(header string, values map[string]any) []byte {
 	var keys []string
 	for key := range values {
