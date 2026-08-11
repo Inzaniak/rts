@@ -144,7 +144,6 @@ type Request struct {
 type OperationType string
 
 const (
-	OpMkdir   OperationType = "mkdir"
 	OpWrite   OperationType = "write"
 	OpRemove  OperationType = "remove"
 	OpMove    OperationType = "move"
@@ -160,9 +159,7 @@ type Operation struct {
 	Mode         os.FileMode   `json:"mode,omitempty"`
 	Command      string        `json:"command,omitempty"`
 	Args         []string      `json:"args,omitempty"`
-	Dir          string        `json:"dir,omitempty"`
 	Description  string        `json:"description"`
-	Sensitive    bool          `json:"sensitive,omitempty"`
 }
 
 type ChangeSet struct {

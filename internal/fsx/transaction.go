@@ -66,7 +66,6 @@ func (e *Executor) Apply(ctx context.Context, change core.ChangeSet) (core.Apply
 		return core.ApplyResult{}, err
 	}
 
-	var applied []core.Operation
 	for _, op := range change.Operations {
 		if err := applyOperation(ctx, op); err != nil {
 			rollbackErr := restoreManifest(manifest)
@@ -75,9 +74,7 @@ func (e *Executor) Apply(ctx context.Context, change core.ChangeSet) (core.Apply
 			}
 			return core.ApplyResult{}, fmt.Errorf("apply %q: %w; file changes rolled back", op.Description, err)
 		}
-		applied = append(applied, op)
 	}
-	_ = applied
 	if err := writeManifest(backupDir, manifest); err != nil {
 		return core.ApplyResult{}, fmt.Errorf("write transaction manifest: %w", err)
 	}
@@ -212,12 +209,6 @@ func createBackups(backupDir string, change core.ChangeSet) (backupManifest, err
 
 func applyOperation(ctx context.Context, op core.Operation) error {
 	switch op.Type {
-	case core.OpMkdir:
-		mode := op.Mode
-		if mode == 0 {
-			mode = 0o755
-		}
-		return os.MkdirAll(op.Path, mode)
 	case core.OpWrite:
 		mode := op.Mode
 		if mode == 0 {
@@ -293,7 +284,6 @@ func applyOperation(ctx context.Context, op core.Operation) error {
 		return os.Remove(op.Source)
 	case core.OpCommand:
 		cmd := exec.CommandContext(ctx, op.Command, op.Args...)
-		cmd.Dir = op.Dir
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			message := strings.TrimSpace(string(output))
