@@ -97,8 +97,7 @@ func (d *genericDriver) Detect(ctx context.Context) []core.Installation {
 	return result
 }
 
-func (d *genericDriver) Discover(ctx context.Context, project string) ([]core.Resource, error) {
-	_ = ctx
+func (d *genericDriver) Discover(project string) ([]core.Resource, error) {
 	var result []core.Resource
 	for _, loc := range d.locations(project) {
 		resources, err := discoverLocation(d.id, project, loc)
@@ -135,8 +134,7 @@ func (d *genericDriver) Discover(ctx context.Context, project string) ([]core.Re
 	return dedupeResources(result), nil
 }
 
-func (d *genericDriver) PlanCreate(ctx context.Context, request core.Request) (core.ChangeSet, error) {
-	_ = ctx
+func (d *genericDriver) PlanCreate(request core.Request) (core.ChangeSet, error) {
 	if request.Kind == core.KindMCP {
 		return d.planCreateMCP(request)
 	}
@@ -171,8 +169,7 @@ func (d *genericDriver) PlanCreate(ctx context.Context, request core.Request) (c
 	}, nil
 }
 
-func (d *genericDriver) PlanUpdate(ctx context.Context, resource core.Resource, content []byte) (core.ChangeSet, error) {
-	_ = ctx
+func (d *genericDriver) PlanUpdate(resource core.Resource, content []byte) (core.ChangeSet, error) {
 	if resource.ReadOnly || !resource.Has(core.CanUpdate) {
 		return core.ChangeSet{}, fmt.Errorf("resource is read-only: %s", resource.Path)
 	}
@@ -204,8 +201,7 @@ func (d *genericDriver) PlanUpdate(ctx context.Context, resource core.Resource, 
 	}, nil
 }
 
-func (d *genericDriver) PlanDelete(ctx context.Context, resource core.Resource) (core.ChangeSet, error) {
-	_ = ctx
+func (d *genericDriver) PlanDelete(resource core.Resource) (core.ChangeSet, error) {
 	if resource.ReadOnly || !resource.Has(core.CanDelete) {
 		return core.ChangeSet{}, fmt.Errorf("resource is read-only: %s", resource.Path)
 	}
@@ -236,8 +232,7 @@ func (d *genericDriver) PlanDelete(ctx context.Context, resource core.Resource) 
 	}, nil
 }
 
-func (d *genericDriver) PlanEnable(ctx context.Context, resource core.Resource) (core.ChangeSet, error) {
-	_ = ctx
+func (d *genericDriver) PlanEnable(resource core.Resource) (core.ChangeSet, error) {
 	if resource.Kind != core.KindMCP || resource.Locator == "" {
 		return core.ChangeSet{}, fmt.Errorf("native enable is only supported for MCP resources")
 	}
@@ -262,8 +257,7 @@ func (d *genericDriver) PlanEnable(ctx context.Context, resource core.Resource) 
 	}, nil
 }
 
-func (d *genericDriver) Validate(ctx context.Context, resource core.Resource) []core.Diagnostic {
-	_ = ctx
+func (d *genericDriver) Validate(resource core.Resource) []core.Diagnostic {
 	var result []core.Diagnostic
 	info, err := os.Lstat(resource.Path)
 	if err != nil {

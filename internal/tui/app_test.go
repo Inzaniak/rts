@@ -363,7 +363,7 @@ url = "https://example.com/mcp"
 	}
 	defer state.Close()
 	svc := service.New(adapters.All(), state, configRoot)
-	resources, err := svc.Inventory(t.Context(), "", service.Filters{
+	resources, err := svc.Inventory("", service.Filters{
 		Harness: core.Codex, Kind: core.KindMCP,
 	})
 	if err != nil {

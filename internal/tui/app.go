@@ -69,7 +69,7 @@ type editorDone struct {
 }
 
 func Run(svc *service.Service, project string, noColor bool) error {
-	resources, err := svc.Inventory(context.Background(), project, service.Filters{})
+	resources, err := svc.Inventory(project, service.Filters{})
 	if err != nil {
 		return err
 	}
@@ -724,7 +724,7 @@ func (m *model) reload() {
 		selectedID = selected.ID
 		selectedKey = selected.Key()
 	}
-	resources, err := m.service.Inventory(context.Background(), m.project, service.Filters{})
+	resources, err := m.service.Inventory(m.project, service.Filters{})
 	if err != nil {
 		m.status = err.Error()
 		return
@@ -765,7 +765,7 @@ func (m *model) createSelected() {
 	if selected == nil || strings.TrimSpace(m.input) == "" {
 		return
 	}
-	change, err := m.service.PlanCreate(context.Background(), core.Request{
+	change, err := m.service.PlanCreate(core.Request{
 		Harness: selected.Harness, Kind: selected.Kind, Scope: selected.Scope,
 		Name: strings.TrimSpace(m.input), Project: m.project,
 	})
@@ -787,7 +787,7 @@ func (m *model) deleteSelected() {
 	if selected == nil {
 		return
 	}
-	change, err := m.service.PlanDelete(context.Background(), *selected)
+	change, err := m.service.PlanDelete(*selected)
 	if err == nil {
 		_, err = m.service.Apply(context.Background(), change)
 	}
@@ -806,7 +806,7 @@ func (m *model) toggleSelected(enabled bool) {
 	if selected == nil {
 		return
 	}
-	change, err := m.service.PlanToggle(context.Background(), *selected, enabled)
+	change, err := m.service.PlanToggle(*selected, enabled)
 	if err == nil {
 		_, err = m.service.Apply(context.Background(), change)
 	}

@@ -6,11 +6,11 @@ type Driver interface {
 	ID() Harness
 	DisplayName() string
 	Detect(context.Context) []Installation
-	Discover(context.Context, string) ([]Resource, error)
-	PlanCreate(context.Context, Request) (ChangeSet, error)
-	PlanUpdate(context.Context, Resource, []byte) (ChangeSet, error)
-	PlanDelete(context.Context, Resource) (ChangeSet, error)
-	PlanEnable(context.Context, Resource) (ChangeSet, error)
-	Validate(context.Context, Resource) []Diagnostic
+	Discover(string) ([]Resource, error)
+	PlanCreate(Request) (ChangeSet, error)
+	PlanUpdate(Resource, []byte) (ChangeSet, error)
+	PlanDelete(Resource) (ChangeSet, error)
+	PlanEnable(Resource) (ChangeSet, error)
+	Validate(Resource) []Diagnostic
 	Docs() []string
 }

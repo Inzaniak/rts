@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,7 +41,7 @@ func (s *Service) disabledStoragePath(id string) string {
 	return filepath.Join(s.disabledRoot(), "payloads", id)
 }
 
-func (s *Service) planDisableStored(ctx context.Context, resource core.Resource) (core.ChangeSet, error) {
+func (s *Service) planDisableStored(resource core.Resource) (core.ChangeSet, error) {
 	if resource.ReadOnly || !resource.Has(core.CanDelete) {
 		return core.ChangeSet{}, fmt.Errorf("resource cannot be disabled: %s", resource.Path)
 	}
@@ -71,7 +70,7 @@ func (s *Service) planDisableStored(ctx context.Context, resource core.Resource)
 		if err != nil {
 			return core.ChangeSet{}, err
 		}
-		remove, err := driver.PlanDelete(ctx, resource)
+		remove, err := driver.PlanDelete(resource)
 		if err != nil {
 			return core.ChangeSet{}, err
 		}
@@ -106,7 +105,7 @@ func (s *Service) planDisableStored(ctx context.Context, resource core.Resource)
 	return change, nil
 }
 
-func (s *Service) planEnableStored(ctx context.Context, resource core.Resource) (core.ChangeSet, error) {
+func (s *Service) planEnableStored(resource core.Resource) (core.ChangeSet, error) {
 	manifestPath, _ := resource.Metadata[disabledManifestKey].(string)
 	entry, err := s.loadDisabledEntry(manifestPath)
 	if err != nil {
@@ -122,7 +121,7 @@ func (s *Service) planEnableStored(ctx context.Context, resource core.Resource) 
 		if err != nil {
 			return core.ChangeSet{}, err
 		}
-		resources, err := driver.Discover(ctx, entry.Resource.ProjectRoot)
+		resources, err := driver.Discover(entry.Resource.ProjectRoot)
 		if err != nil {
 			return core.ChangeSet{}, err
 		}
@@ -136,7 +135,7 @@ func (s *Service) planEnableStored(ctx context.Context, resource core.Resource) 
 				)
 			}
 		}
-		restore, err := driver.PlanUpdate(ctx, entry.Resource, entry.Content)
+		restore, err := driver.PlanUpdate(entry.Resource, entry.Content)
 		if err != nil {
 			return core.ChangeSet{}, err
 		}

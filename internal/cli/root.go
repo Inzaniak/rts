@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -104,7 +103,7 @@ func (a *app) listCommand() *cobra.Command {
 					return err
 				}
 			}
-			resources, err := a.service.Inventory(cmd.Context(), a.project, filters)
+			resources, err := a.service.Inventory(a.project, filters)
 			if err != nil {
 				return err
 			}
@@ -127,7 +126,7 @@ func (a *app) getCommand() *cobra.Command {
 		Short: "Read one resource",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resource, err := a.find(cmd.Context(), args[0])
+			resource, err := a.find(args[0])
 			if err != nil {
 				return err
 			}
@@ -210,7 +209,7 @@ func (a *app) addCommand() *cobra.Command {
 				Project: a.project, Content: body, Force: force,
 			}
 			return a.runMutation(cmd, func() (core.ChangeSet, error) {
-				return a.service.PlanCreate(cmd.Context(), request)
+				return a.service.PlanCreate(request)
 			})
 		},
 	}
@@ -233,7 +232,7 @@ func (a *app) editCommand() *cobra.Command {
 		Short: "Edit a resource",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resource, err := a.find(cmd.Context(), args[0])
+			resource, err := a.find(args[0])
 			if err != nil {
 				return err
 			}
@@ -262,7 +261,7 @@ func (a *app) editCommand() *cobra.Command {
 				return err
 			}
 			return a.runMutation(cmd, func() (core.ChangeSet, error) {
-				return a.service.PlanUpdate(cmd.Context(), resource, body)
+				return a.service.PlanUpdate(resource, body)
 			})
 		},
 	}
@@ -278,12 +277,12 @@ func (a *app) removeCommand() *cobra.Command {
 		Short:   "Remove a resource transactionally",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resource, err := a.find(cmd.Context(), args[0])
+			resource, err := a.find(args[0])
 			if err != nil {
 				return err
 			}
 			return a.runMutation(cmd, func() (core.ChangeSet, error) {
-				return a.service.PlanDelete(cmd.Context(), resource)
+				return a.service.PlanDelete(resource)
 			})
 		},
 	}
@@ -299,12 +298,12 @@ func (a *app) toggleCommand(enabled bool) *cobra.Command {
 		Short: action + " a resource using native flags or RTS disabled storage",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resource, err := a.find(cmd.Context(), args[0])
+			resource, err := a.find(args[0])
 			if err != nil {
 				return err
 			}
 			return a.runMutation(cmd, func() (core.ChangeSet, error) {
-				return a.service.PlanToggle(cmd.Context(), resource, enabled)
+				return a.service.PlanToggle(resource, enabled)
 			})
 		},
 	}
@@ -317,7 +316,7 @@ func (a *app) diffCommand() *cobra.Command {
 		Short: "Preview replacement content as a unified diff",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resource, err := a.find(cmd.Context(), args[0])
+			resource, err := a.find(args[0])
 			if err != nil {
 				return err
 			}
@@ -381,7 +380,7 @@ func (a *app) linkCommand() *cobra.Command {
 		Short: "Link resources for explicit drift-aware synchronization",
 		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			link, err := a.service.Link(cmd.Context(), a.project, args[0], args[1:])
+			link, err := a.service.Link(a.project, args[0], args[1:])
 			if err != nil {
 				return err
 			}
@@ -411,7 +410,7 @@ func (a *app) syncCommand() *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				drift, err := a.service.Drift(cmd.Context(), a.project)
+				drift, err := a.service.Drift(a.project)
 				if err != nil {
 					return err
 				}
@@ -631,12 +630,12 @@ func (a *app) filters() (service.Filters, error) {
 	return filters, nil
 }
 
-func (a *app) find(ctx context.Context, id string) (core.Resource, error) {
+func (a *app) find(id string) (core.Resource, error) {
 	filters, err := a.filters()
 	if err != nil {
 		return core.Resource{}, err
 	}
-	return a.service.Find(ctx, a.project, id, filters)
+	return a.service.Find(a.project, id, filters)
 }
 
 func (a *app) runMutation(cmd *cobra.Command, mutate mutation) error {
