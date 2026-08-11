@@ -31,13 +31,6 @@ type Link struct {
 	UpdatedAt    time.Time         `json:"updatedAt"`
 }
 
-type Source struct {
-	Name      string    `json:"name"`
-	URL       string    `json:"url"`
-	Harness   string    `json:"harness,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
-}
-
 func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
@@ -75,12 +68,6 @@ func (s *Store) migrate() error {
 		CREATE TABLE IF NOT EXISTS kv (
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL
-		);
-		CREATE TABLE IF NOT EXISTS sources (
-			name TEXT PRIMARY KEY,
-			url TEXT NOT NULL,
-			harness TEXT NOT NULL DEFAULT '',
-			created_at TEXT NOT NULL
 		);
 	`)
 	return err
@@ -166,39 +153,5 @@ func (s *Store) Links() ([]Link, error) {
 
 func (s *Store) RemoveLink(id string) error {
 	_, err := s.db.Exec(`DELETE FROM links WHERE id=?`, id)
-	return err
-}
-
-func (s *Store) AddSource(source Source) error {
-	if source.CreatedAt.IsZero() {
-		source.CreatedAt = time.Now().UTC()
-	}
-	_, err := s.db.Exec(`INSERT INTO sources(name,url,harness,created_at) VALUES(?,?,?,?)
-		ON CONFLICT(name) DO UPDATE SET url=excluded.url,harness=excluded.harness`,
-		source.Name, source.URL, source.Harness, source.CreatedAt.Format(time.RFC3339Nano))
-	return err
-}
-
-func (s *Store) Sources() ([]Source, error) {
-	rows, err := s.db.Query(`SELECT name,url,harness,created_at FROM sources ORDER BY name`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var result []Source
-	for rows.Next() {
-		var source Source
-		var created string
-		if err := rows.Scan(&source.Name, &source.URL, &source.Harness, &created); err != nil {
-			return nil, err
-		}
-		source.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
-		result = append(result, source)
-	}
-	return result, rows.Err()
-}
-
-func (s *Store) RemoveSource(name string) error {
-	_, err := s.db.Exec(`DELETE FROM sources WHERE name=?`, name)
 	return err
 }

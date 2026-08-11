@@ -19,8 +19,8 @@ native files / native CLIs
               locks + hashes + backups
 ```
 
-RTS's SQLite database contains only saved projects, remote source metadata,
-resource links, fingerprints, and migrations. It does not mirror the complete
+RTS's SQLite database contains only saved projects, resource links,
+fingerprints, and migrations. It does not mirror the complete
 contents of native configuration.
 
 ## Resource identity

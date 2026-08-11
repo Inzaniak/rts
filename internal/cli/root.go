@@ -82,7 +82,7 @@ func (a *app) rootCommand() *cobra.Command {
 		a.listCommand(), a.getCommand(), a.addCommand(), a.editCommand(), a.removeCommand(),
 		a.toggleCommand(true), a.toggleCommand(false), a.diffCommand(), a.doctorCommand(),
 		a.linkCommand(), a.unlinkCommand(), a.syncCommand(),
-		a.projectCommand(), a.backupCommand(), a.sourceCommand(), a.adapterCommand(),
+		a.projectCommand(), a.backupCommand(), a.adapterCommand(),
 		a.lifecycleCommand("install"), a.updateCommand(), a.lifecycleCommand("uninstall"),
 	)
 	return command
@@ -506,39 +506,6 @@ func (a *app) backupCommand() *cobra.Command {
 				}
 				return a.output(cmd, result)
 			},
-		},
-	)
-	return parent
-}
-
-func (a *app) sourceCommand() *cobra.Command {
-	parent := &cobra.Command{Use: "source", Short: "Manage remote marketplace and repository sources"}
-	var harness string
-	add := &cobra.Command{
-		Use: "add <name> <url>", Args: cobra.ExactArgs(2), Short: "Register a source",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			source := store.Source{Name: args[0], URL: args[1], Harness: harness}
-			if err := a.service.Store.AddSource(source); err != nil {
-				return err
-			}
-			return a.output(cmd, source)
-		},
-	}
-	add.Flags().StringVar(&harness, "for", "", "optional harness name")
-	parent.AddCommand(add,
-		&cobra.Command{
-			Use: "list", Short: "List configured sources",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				sources, err := a.service.Store.Sources()
-				if err != nil {
-					return err
-				}
-				return a.output(cmd, sources)
-			},
-		},
-		&cobra.Command{
-			Use: "remove <name>", Args: cobra.ExactArgs(1), Short: "Remove a source",
-			RunE: func(cmd *cobra.Command, args []string) error { return a.service.Store.RemoveSource(args[0]) },
 		},
 	)
 	return parent
