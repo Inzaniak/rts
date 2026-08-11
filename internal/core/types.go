@@ -70,19 +70,17 @@ var Kinds = []Kind{
 type Capability string
 
 const (
-	CanRead    Capability = "read"
-	CanCreate  Capability = "create"
-	CanUpdate  Capability = "update"
-	CanDelete  Capability = "delete"
-	CanEnable  Capability = "enable"
-	CanInstall Capability = "install"
+	CanRead   Capability = "read"
+	CanCreate Capability = "create"
+	CanUpdate Capability = "update"
+	CanDelete Capability = "delete"
+	CanEnable Capability = "enable"
 )
 
 type Resource struct {
 	ID           string         `json:"id"`
 	Harness      Harness        `json:"harness"`
 	Surface      string         `json:"surface,omitempty"`
-	Version      string         `json:"version,omitempty"`
 	Kind         Kind           `json:"kind"`
 	Scope        Scope          `json:"scope"`
 	ProjectRoot  string         `json:"projectRoot,omitempty"`
@@ -176,11 +174,8 @@ type ApplyResult struct {
 }
 
 type Envelope struct {
-	SchemaVersion string         `json:"schemaVersion"`
-	Data          any            `json:"data,omitempty"`
-	Warnings      []string       `json:"warnings,omitempty"`
-	Errors        []string       `json:"errors,omitempty"`
-	Meta          map[string]any `json:"meta,omitempty"`
+	SchemaVersion string `json:"schemaVersion"`
+	Data          any    `json:"data,omitempty"`
 }
 
 func NewEnvelope(data any) Envelope {
