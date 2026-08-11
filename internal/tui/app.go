@@ -717,6 +717,13 @@ func (m *model) selectScope(index int) {
 }
 
 func (m *model) reload() {
+	selectedID := ""
+	selectedKey := ""
+	previousCursor := m.cursor
+	if selected := m.selected(); selected != nil {
+		selectedID = selected.ID
+		selectedKey = selected.Key()
+	}
 	resources, err := m.service.Inventory(context.Background(), m.project, service.Filters{})
 	if err != nil {
 		m.status = err.Error()
@@ -742,6 +749,14 @@ func (m *model) reload() {
 		}
 	}
 	m.applyFilter()
+	m.cursor = min(previousCursor, max(0, len(m.filtered)-1))
+	for index, resource := range m.filtered {
+		if (selectedID != "" && resource.ID == selectedID) ||
+			(selectedID == "" && selectedKey != "" && resource.Key() == selectedKey) {
+			m.cursor = index
+			break
+		}
+	}
 	m.status = fmt.Sprintf("Reloaded %d resources", len(resources))
 }
 

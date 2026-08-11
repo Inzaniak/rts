@@ -349,6 +349,9 @@ func TestSpaceDisablesAndEnablesSelectedMCP(t *testing.T) {
 	}
 	configPath := filepath.Join(codexHome, "config.toml")
 	if err := os.WriteFile(configPath, []byte(`
+[mcp_servers.alpha]
+url = "https://example.com/alpha"
+
 [mcp_servers.docs]
 url = "https://example.com/mcp"
 `), 0o644); err != nil {
@@ -367,6 +370,15 @@ url = "https://example.com/mcp"
 		t.Fatal(err)
 	}
 	m := newModel(svc, "", resources, true)
+	for index, resource := range m.filtered {
+		if resource.Name == "docs" {
+			m.cursor = index
+			break
+		}
+	}
+	if m.cursor == 0 {
+		t.Fatalf("test setup did not select a non-first resource: %#v", m.filtered)
+	}
 
 	m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeySpace}))
 	raw, _ := os.ReadFile(configPath)
@@ -384,12 +396,17 @@ url = "https://example.com/mcp"
 	if disabledIndex < 0 {
 		t.Fatalf("disabled MCP entry is missing from TUI inventory: %#v", m.filtered)
 	}
-	m.cursor = disabledIndex
+	if m.cursor != disabledIndex || m.selected().Name != "docs" {
+		t.Fatalf("selection moved after disabling: cursor=%d selected=%#v, want index %d", m.cursor, m.selected(), disabledIndex)
+	}
 	m.filterFocus = true
 	m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeySpace}))
 	raw, _ = os.ReadFile(configPath)
 	if !strings.Contains(string(raw), "https://example.com/mcp") {
 		t.Fatalf("space did not re-enable MCP entry:\n%s", raw)
+	}
+	if selected := m.selected(); selected == nil || selected.Name != "docs" {
+		t.Fatalf("selection moved after enabling: cursor=%d selected=%#v", m.cursor, selected)
 	}
 }
 
