@@ -103,6 +103,34 @@ func TestMouseClicksSelectTabs(t *testing.T) {
 	}
 }
 
+func TestMouseWheelMovesListSelection(t *testing.T) {
+	resources := make([]core.Resource, 8)
+	for index := range resources {
+		resources[index] = core.Resource{Name: fmt.Sprintf("resource-%d", index)}
+	}
+	svc := &service.Service{Registry: core.NewRegistry(adapters.All()...)}
+	m := newModel(svc, "", resources, true)
+	m.filterFocus = true
+
+	m.Update(tea.MouseWheelMsg(tea.Mouse{Button: tea.MouseWheelDown}))
+	if m.cursor != 3 || m.filterFocus {
+		t.Fatalf("wheel down: cursor=%d focus=%t, want cursor=3 focus=false", m.cursor, m.filterFocus)
+	}
+	m.Update(tea.MouseWheelMsg(tea.Mouse{Button: tea.MouseWheelUp}))
+	if m.cursor != 0 {
+		t.Fatalf("wheel up cursor = %d, want 0", m.cursor)
+	}
+	m.Update(tea.MouseWheelMsg(tea.Mouse{Button: tea.MouseWheelUp}))
+	if m.cursor != 0 {
+		t.Fatalf("wheel up did not clamp at top: %d", m.cursor)
+	}
+	m.cursor = len(resources) - 2
+	m.Update(tea.MouseWheelMsg(tea.Mouse{Button: tea.MouseWheelDown}))
+	if m.cursor != len(resources)-1 {
+		t.Fatalf("wheel down did not clamp at bottom: %d", m.cursor)
+	}
+}
+
 func TestQuestionMarkOpensDedicatedShortcutScreen(t *testing.T) {
 	svc := &service.Service{Registry: core.NewRegistry(adapters.All()...)}
 	m := newModel(svc, "", []core.Resource{{Name: "docs"}}, true)
@@ -242,6 +270,42 @@ func TestSkillDetailPageScrollingAndPercentage(t *testing.T) {
 	m.applyFilter()
 	if m.detailOffset != 0 {
 		t.Fatalf("filter did not reset detail offset: %d", m.detailOffset)
+	}
+}
+
+func TestMouseWheelScrollsDetail(t *testing.T) {
+	skill := filepath.Join(t.TempDir(), "long-skill")
+	if err := os.MkdirAll(skill, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var body strings.Builder
+	for index := range 25 {
+		fmt.Fprintf(&body, "line %02d\n", index)
+	}
+	if err := os.WriteFile(filepath.Join(skill, "SKILL.md"), []byte(body.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resources := []core.Resource{{
+		Harness: core.Codex, Kind: core.KindSkill, Name: "long-skill", Path: skill,
+		Format: "skill-directory", Metadata: map[string]any{"mainFile": "SKILL.md"},
+	}}
+	svc := &service.Service{Registry: core.NewRegistry(adapters.All()...)}
+	m := newModel(svc, "", resources, true)
+	m.mode = modeDetail
+	m.width = 60
+	m.height = 20
+
+	m.Update(tea.MouseWheelMsg(tea.Mouse{Button: tea.MouseWheelDown}))
+	if m.detailOffset != 3 {
+		t.Fatalf("wheel down offset = %d, want 3", m.detailOffset)
+	}
+	m.Update(tea.MouseWheelMsg(tea.Mouse{Button: tea.MouseWheelUp}))
+	if m.detailOffset != 0 {
+		t.Fatalf("wheel up offset = %d, want 0", m.detailOffset)
+	}
+	m.Update(tea.MouseWheelMsg(tea.Mouse{Button: tea.MouseWheelLeft}))
+	if m.detailOffset != 0 {
+		t.Fatalf("horizontal wheel changed offset to %d", m.detailOffset)
 	}
 }
 

@@ -122,6 +122,9 @@ func (m *model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseClickMsg:
 		m.handleMouse(msg)
 		return m, nil
+	case tea.MouseWheelMsg:
+		m.handleMouseWheel(msg)
+		return m, nil
 	}
 	return m, nil
 }
@@ -336,6 +339,32 @@ func (m *model) handleMouse(msg tea.MouseClickMsg) {
 	}
 }
 
+func (m *model) handleMouseWheel(msg tea.MouseWheelMsg) {
+	const wheelStep = 3
+
+	delta := 0
+	switch msg.Button {
+	case tea.MouseWheelUp:
+		delta = -wheelStep
+	case tea.MouseWheelDown:
+		delta = wheelStep
+	default:
+		return
+	}
+
+	switch m.mode {
+	case modeDetail:
+		m.scrollDetail(delta)
+	case modeList:
+		if len(m.filtered) == 0 {
+			return
+		}
+		m.cursor = min(len(m.filtered)-1, max(0, m.cursor+delta))
+		m.detailOffset = 0
+		m.filterFocus = false
+	}
+}
+
 func (m *model) focusFilterRow(row int) {
 	m.filterFocus = true
 	m.filterRow = row
@@ -445,6 +474,7 @@ func (m *model) renderHelp() string {
 		"",
 		section("Resource list"),
 		shortcut("j / k, ↓ / ↑", "Move selection"),
+		shortcut("mouse wheel", "Move selection"),
 		shortcut("g / home", "Select first resource"),
 		shortcut("G / end", "Select last resource"),
 		shortcut("enter", "Open details"),
@@ -461,6 +491,7 @@ func (m *model) renderHelp() string {
 		"",
 		section("Detail view"),
 		shortcut("↑ / ↓", "Scroll one line"),
+		shortcut("mouse wheel", "Scroll three lines"),
 		shortcut("page up / page down", "Scroll one page"),
 		shortcut("g / home, G / end", "Jump to top or bottom"),
 		shortcut("← / →", "Switch resource"),
