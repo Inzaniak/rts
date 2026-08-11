@@ -3,8 +3,6 @@ package tui
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -24,7 +22,6 @@ const (
 	modeFilter
 	modeCreate
 	modeConfirmDelete
-	modeConfirmUpdate
 	modeHelp
 )
 
@@ -49,8 +46,6 @@ type model struct {
 	status       string
 	width        int
 	height       int
-	pending      []byte
-	tempPath     string
 	noColor      bool
 }
 
@@ -70,9 +65,7 @@ type scopeTab struct {
 }
 
 type editorDone struct {
-	err      error
-	resource core.Resource
-	path     string
+	err error
 }
 
 func Run(svc *service.Service, project string, noColor bool) error {
@@ -108,14 +101,8 @@ func (m *model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = "editor: " + msg.err.Error()
 			return m, nil
 		}
-		content, err := os.ReadFile(msg.path)
-		if err != nil {
-			m.status = err.Error()
-			return m, nil
-		}
-		m.pending = content
-		m.tempPath = msg.path
-		m.mode = modeConfirmUpdate
+		m.reload()
+		m.status = "Resource edited"
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
@@ -175,16 +162,6 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.deleteSelected()
 		case "n", "N", "esc":
 			m.mode = modeList
-		}
-		return m, nil
-	}
-	if m.mode == modeConfirmUpdate {
-		switch key {
-		case "y", "Y":
-			m.updateSelected()
-		case "n", "N", "esc":
-			m.cleanupTemp()
-			m.mode = modeDetail
 		}
 		return m, nil
 	}
@@ -314,7 +291,7 @@ func (m *model) handleMouse(msg tea.MouseClickMsg) {
 		return
 	}
 	switch m.mode {
-	case modeFilter, modeCreate, modeConfirmDelete, modeConfirmUpdate, modeHelp:
+	case modeFilter, modeCreate, modeConfirmDelete, modeHelp:
 		return
 	}
 	switch msg.Y {
@@ -391,7 +368,7 @@ func (m *model) render() string {
 	}
 	header := title + "\n" + m.style(false, "#888888").Render(subtitle) +
 		"\n" + m.renderHarnessTabs() + "\n" + m.renderKindTabs() + "\n" + m.renderScopeTabs()
-	if m.mode == modeDetail || m.mode == modeConfirmUpdate {
+	if m.mode == modeDetail {
 		return header + "\n\n" + m.renderDetail()
 	}
 	var rows []string
@@ -531,19 +508,10 @@ func (m *model) renderDetail() string {
 	} else {
 		viewport, percentage := m.renderDetailViewport(contentLines(body))
 		lines = append(lines, "\n"+viewport)
-		if m.mode != modeConfirmUpdate {
-			lines = append(lines, fmt.Sprintf(
-				"\n↑/↓ scroll • ←/→ switch • pgup/pgdown page • %d%% • enter/esc back • space enable/disable • e edit • d delete",
-				percentage,
-			))
-		}
-	}
-	if m.mode == modeConfirmUpdate {
-		diff, err := m.service.Diff(*resource, m.pending)
-		if err == nil {
-			lines = append(lines, "\nProposed diff:\n"+diff)
-		}
-		lines = append(lines, "\nApply edited content? A backup will be created. [y/N]")
+		lines = append(lines, fmt.Sprintf(
+			"\n↑/↓ scroll • ←/→ switch • pgup/pgdown page • %d%% • enter/esc back • space enable/disable • e edit • d delete",
+			percentage,
+		))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -854,56 +822,14 @@ func (m *model) editSelected() tea.Cmd {
 		m.status = "Selected resource is read-only"
 		return nil
 	}
-	content, err := m.service.Read(*selected)
+	command, err := editor.Command(service.EditablePath(*selected))
 	if err != nil {
 		m.status = err.Error()
 		return nil
 	}
-	file, err := os.CreateTemp("", "rts-edit-*"+filepath.Ext(selected.Path))
-	if err != nil {
-		m.status = err.Error()
-		return nil
-	}
-	if _, err := file.Write(content); err != nil {
-		file.Close()
-		m.status = err.Error()
-		return nil
-	}
-	file.Close()
-	command, err := editor.Command(file.Name())
-	if err != nil {
-		_ = os.Remove(file.Name())
-		m.status = err.Error()
-		return nil
-	}
-	resource := *selected
 	return tea.ExecProcess(command, func(err error) tea.Msg {
-		return editorDone{err: err, resource: resource, path: file.Name()}
+		return editorDone{err: err}
 	})
-}
-
-func (m *model) updateSelected() {
-	selected := m.selected()
-	if selected == nil {
-		return
-	}
-	_, _, err := m.service.Update(context.Background(), *selected, m.pending, false)
-	m.cleanupTemp()
-	m.mode = modeDetail
-	if err != nil {
-		m.status = err.Error()
-		return
-	}
-	m.reload()
-	m.mode = modeDetail
-	m.status = "Resource updated; backup created"
-}
-
-func (m *model) cleanupTemp() {
-	if m.tempPath != "" {
-		_ = os.Remove(m.tempPath)
-	}
-	m.pending, m.tempPath = nil, ""
 }
 
 func (m *model) renderHarnessTabs() string {

@@ -237,11 +237,26 @@ func (a *app) editCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if file == "" && content == "" {
+				if a.dryRun {
+					return errors.New("--dry-run cannot be used with direct external editing; use --content or --file")
+				}
+				if resource.ReadOnly || !resource.Has(core.CanUpdate) {
+					return errors.New("resource is read-only")
+				}
+				path, err := editExternally(resource)
+				if err != nil {
+					return err
+				}
+				if a.json {
+					return writeJSON(cmd.OutOrStdout(), core.NewEnvelope(map[string]string{"path": path}))
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Edited %s\n", path)
+				return nil
+			}
 			body := []byte(content)
 			if file != "" {
 				body, err = os.ReadFile(file)
-			} else if content == "" {
-				body, err = editExternally(a.service, resource)
 			}
 			if err != nil {
 				return err
@@ -720,33 +735,17 @@ func confirm(reader io.Reader) bool {
 	return answer == "y" || answer == "yes"
 }
 
-func editExternally(svc *service.Service, resource core.Resource) ([]byte, error) {
-	content, err := svc.Read(resource)
-	if err != nil {
-		return nil, err
-	}
-	temp, err := os.CreateTemp("", "rts-edit-*"+filepath.Ext(resource.Path))
-	if err != nil {
-		return nil, err
-	}
-	path := temp.Name()
-	defer os.Remove(path)
-	if _, err := temp.Write(content); err != nil {
-		temp.Close()
-		return nil, err
-	}
-	if err := temp.Close(); err != nil {
-		return nil, err
-	}
+func editExternally(resource core.Resource) (string, error) {
+	path := service.EditablePath(resource)
 	command, err := editor.Command(path)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	command.Stdin, command.Stdout, command.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := command.Run(); err != nil {
-		return nil, err
+		return "", err
 	}
-	return os.ReadFile(path)
+	return path, nil
 }
 
 func keyValues(values []string) map[string]string {

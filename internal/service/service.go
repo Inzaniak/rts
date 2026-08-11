@@ -174,6 +174,13 @@ func (s *Service) Read(resource core.Resource) ([]byte, error) {
 	if resource.Kind == core.KindMCP && resource.Locator != "" {
 		return core.PrettyJSON(resource.Metadata["config"]), nil
 	}
+	return os.ReadFile(EditablePath(resource))
+}
+
+// EditablePath returns the native file that should be opened to edit a
+// resource. Directory resources such as skills expose their primary document
+// through the mainFile metadata field.
+func EditablePath(resource core.Resource) string {
 	path := resource.Path
 	if resource.Metadata != nil {
 		if main, ok := resource.Metadata["mainFile"].(string); ok && main != "" {
@@ -182,7 +189,7 @@ func (s *Service) Read(resource core.Resource) ([]byte, error) {
 	} else if resource.Format == "skill-directory" {
 		path = filepath.Join(path, "SKILL.md")
 	}
-	return os.ReadFile(path)
+	return path
 }
 
 func (s *Service) Create(ctx context.Context, request core.Request, dryRun bool) (core.ChangeSet, core.ApplyResult, error) {

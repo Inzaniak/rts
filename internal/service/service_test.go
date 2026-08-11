@@ -82,6 +82,25 @@ func TestExplicitSkillSyncDetectsAndResolvesDrift(t *testing.T) {
 	}
 }
 
+func TestEditablePathUsesDirectoryResourceMainFile(t *testing.T) {
+	resource := core.Resource{
+		Kind: core.KindSkill, Path: "/skills/review", Format: "skill-directory",
+		Metadata: map[string]any{"mainFile": "nested/SKILL.md"},
+	}
+	want := filepath.Join("/skills/review", "nested", "SKILL.md")
+	if got := EditablePath(resource); got != want {
+		t.Fatalf("EditablePath() = %q, want %q", got, want)
+	}
+}
+
+func TestEditablePathFallsBackToSkillDocument(t *testing.T) {
+	resource := core.Resource{Kind: core.KindSkill, Path: "/skills/review", Format: "skill-directory"}
+	want := filepath.Join("/skills/review", "SKILL.md")
+	if got := EditablePath(resource); got != want {
+		t.Fatalf("EditablePath() = %q, want %q", got, want)
+	}
+}
+
 func TestTranslateMCPBetweenOpenCodeAndAntigravity(t *testing.T) {
 	source := core.Resource{Harness: core.OpenCode, Kind: core.KindMCP, Name: "docs"}
 	target := core.Resource{Harness: core.Antigravity, Kind: core.KindMCP, Name: "docs"}

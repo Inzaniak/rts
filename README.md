@@ -71,6 +71,15 @@ Inspect resources non-interactively:
 
 ## Common operations
 
+Open a resource's native file directly in VS Code (or the system editor):
+
+```sh
+./rts edit RESOURCE_ID --project .
+```
+
+Direct editor changes are saved by the editor itself. Use `--content` or
+`--file` when you want RTS's transactional mutation and backup workflow.
+
 Create a project skill. Mutations print a plan and ask for confirmation unless
 `--yes` is supplied:
 
@@ -148,7 +157,7 @@ emitting JSON.
 | `enter` | Open or close details |
 | `/` | Search |
 | `n` | Create another resource of the selected kind/scope |
-| `e` | Edit in VS Code when available, otherwise the system text editor, then review a diff |
+| `e` | Open the native resource file directly in VS Code when available, otherwise the system text editor |
 | `d` | Delete after confirmation |
 | `space` | Disable a resource into RTS storage or restore it |
 | `r` | Reload native files |
