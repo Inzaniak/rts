@@ -1,4 +1,4 @@
-module rts
+module github.com/Inzaniak/rts
 
 go 1.25.0
 

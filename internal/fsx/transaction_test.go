@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"rts/internal/core"
+	"github.com/Inzaniak/rts/internal/core"
 )
 
 func TestApplyBackupAndRestore(t *testing.T) {

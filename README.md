@@ -14,7 +14,39 @@ It discovers native files instead of replacing them with a proprietary source
 of truth. Every mutation is previewed, hash-guarded, locked, backed up, applied
 atomically, and rolled back when a later operation fails.
 
-## Build
+## Install
+
+Install the latest checksum-verified release on macOS or Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Inzaniak/rts/main/install.sh | sh
+```
+
+The installer writes to `~/.local/bin` by default. Set `RTS_INSTALL_DIR` to use
+another directory:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Inzaniak/rts/main/install.sh | RTS_INSTALL_DIR=/usr/local/bin sh
+```
+
+Alternatively, install directly from the Go module:
+
+```sh
+go install github.com/Inzaniak/rts/cmd/rts@latest
+```
+
+RTS requires macOS or Linux on `amd64` or `arm64`. Update an installed binary
+from the latest GitHub release with:
+
+```sh
+rts update
+```
+
+Use `rts update --yes` in a non-interactive script. `rts --version` prints the
+installed version. Existing plugin updates remain available as
+`rts update PLUGIN --harness HARNESS`.
+
+## Build from source
 
 RTS requires Go 1.25 or newer.
 

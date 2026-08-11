@@ -15,9 +15,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/pmezard/go-difflib/difflib"
 
-	"rts/internal/core"
-	"rts/internal/fsx"
-	"rts/internal/store"
+	"github.com/Inzaniak/rts/internal/core"
+	"github.com/Inzaniak/rts/internal/fsx"
+	"github.com/Inzaniak/rts/internal/store"
 )
 
 type Service struct {

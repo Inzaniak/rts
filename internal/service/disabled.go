@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"rts/internal/core"
+	"github.com/Inzaniak/rts/internal/core"
 )
 
 const (

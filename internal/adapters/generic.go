@@ -16,8 +16,8 @@ import (
 	toml "github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 
-	"rts/internal/core"
-	"rts/internal/documents"
+	"github.com/Inzaniak/rts/internal/core"
+	"github.com/Inzaniak/rts/internal/documents"
 )
 
 type location struct {

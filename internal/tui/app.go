@@ -11,9 +11,9 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"rts/internal/core"
-	"rts/internal/editor"
-	"rts/internal/service"
+	"github.com/Inzaniak/rts/internal/core"
+	"github.com/Inzaniak/rts/internal/editor"
+	"github.com/Inzaniak/rts/internal/service"
 )
 
 type mode int

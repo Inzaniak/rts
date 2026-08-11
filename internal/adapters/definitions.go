@@ -9,8 +9,8 @@ import (
 
 	toml "github.com/pelletier/go-toml/v2"
 
-	"rts/internal/core"
-	"rts/internal/documents"
+	"github.com/Inzaniak/rts/internal/core"
+	"github.com/Inzaniak/rts/internal/documents"
 )
 
 func All() []core.Driver {

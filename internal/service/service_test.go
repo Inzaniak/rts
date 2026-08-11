@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"rts/internal/adapters"
-	"rts/internal/core"
-	"rts/internal/store"
+	"github.com/Inzaniak/rts/internal/adapters"
+	"github.com/Inzaniak/rts/internal/core"
+	"github.com/Inzaniak/rts/internal/store"
 )
 
 func TestExplicitSkillSyncDetectsAndResolvesDrift(t *testing.T) {

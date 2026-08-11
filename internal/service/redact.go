@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	"rts/internal/core"
-	"rts/internal/documents"
+	"github.com/Inzaniak/rts/internal/core"
+	"github.com/Inzaniak/rts/internal/documents"
 )
 
 const redacted = "<redacted>"

@@ -14,12 +14,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"rts/internal/adapters"
-	"rts/internal/core"
-	"rts/internal/editor"
-	"rts/internal/service"
-	"rts/internal/store"
-	"rts/internal/tui"
+	"github.com/Inzaniak/rts/internal/adapters"
+	"github.com/Inzaniak/rts/internal/buildinfo"
+	"github.com/Inzaniak/rts/internal/core"
+	"github.com/Inzaniak/rts/internal/editor"
+	"github.com/Inzaniak/rts/internal/selfupdate"
+	"github.com/Inzaniak/rts/internal/service"
+	"github.com/Inzaniak/rts/internal/store"
+	"github.com/Inzaniak/rts/internal/tui"
 )
 
 type app struct {
@@ -52,6 +54,7 @@ func (a *app) rootCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:           "rts [project]",
 		Short:         "Manage configuration across AI coding harnesses",
+		Version:       buildinfo.Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.MaximumNArgs(1),
@@ -63,6 +66,7 @@ func (a *app) rootCommand() *cobra.Command {
 			return tui.Run(a.service, project, a.noColor)
 		},
 	}
+	command.SetVersionTemplate("rts {{.Version}}\n")
 	flags := command.PersistentFlags()
 	flags.StringVarP(&a.project, "project", "p", "", "project root (defaults to no project-scoped discovery)")
 	flags.BoolVar(&a.json, "json", false, "emit stable JSON output")
@@ -79,7 +83,7 @@ func (a *app) rootCommand() *cobra.Command {
 		a.toggleCommand(true), a.toggleCommand(false), a.diffCommand(), a.doctorCommand(),
 		a.linkCommand(), a.unlinkCommand(), a.syncCommand(),
 		a.projectCommand(), a.backupCommand(), a.sourceCommand(), a.adapterCommand(),
-		a.lifecycleCommand("install"), a.lifecycleCommand("update"), a.lifecycleCommand("uninstall"),
+		a.lifecycleCommand("install"), a.updateCommand(), a.lifecycleCommand("uninstall"),
 	)
 	return command
 }
@@ -569,6 +573,53 @@ func (a *app) lifecycleCommand(action string) *cobra.Command {
 			return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
 				return a.service.NativeLifecycle(cmd.Context(), harness, action, args[0], dry)
 			})
+		},
+	}
+}
+
+func (a *app) updateCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "update [plugin]",
+		Short: "Update RTS, or update a plugin through a harness native CLI",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				if a.harness == "" {
+					return errors.New("--harness is required when updating a plugin")
+				}
+				harness, err := core.ParseHarness(a.harness)
+				if err != nil {
+					return err
+				}
+				return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
+					return a.service.NativeLifecycle(cmd.Context(), harness, "update", args[0], dry)
+				})
+			}
+			if a.dryRun {
+				return errors.New("--dry-run is not supported for self-update")
+			}
+			if a.json && !a.yes {
+				return errors.New("JSON mutations require --yes")
+			}
+			if !a.yes {
+				fmt.Fprintf(cmd.OutOrStdout(), "Update RTS %s from the latest GitHub release? [y/N] ", buildinfo.Version)
+				if !confirm(cmd.InOrStdin()) {
+					return errors.New("cancelled")
+				}
+			}
+			result, err := selfupdate.Run(cmd.Context(), selfupdate.Options{CurrentVersion: buildinfo.Version})
+			if err != nil {
+				return err
+			}
+			if a.json {
+				return writeJSON(cmd.OutOrStdout(), core.NewEnvelope(result))
+			}
+			if result.Updated {
+				fmt.Fprintf(cmd.OutOrStdout(), "Updated RTS from %s to %s.\n", result.PreviousVersion, result.Version)
+			} else {
+				fmt.Fprintf(cmd.OutOrStdout(), "RTS %s is already up to date.\n", result.Version)
+			}
+			return nil
 		},
 	}
 }

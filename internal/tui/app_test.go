@@ -9,10 +9,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"rts/internal/adapters"
-	"rts/internal/core"
-	"rts/internal/service"
-	"rts/internal/store"
+	"github.com/Inzaniak/rts/internal/adapters"
+	"github.com/Inzaniak/rts/internal/core"
+	"github.com/Inzaniak/rts/internal/service"
+	"github.com/Inzaniak/rts/internal/store"
 )
 
 func TestTabbedFiltersCompose(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"rts/internal/cli"
+	"github.com/Inzaniak/rts/internal/cli"
 )
 
 func main() {

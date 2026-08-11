@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"rts/internal/core"
+	"github.com/Inzaniak/rts/internal/core"
 )
 
 func TestRedactContentMasksLiteralSecretsAndPreservesReferences(t *testing.T) {

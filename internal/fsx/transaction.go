@@ -17,7 +17,7 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/google/uuid"
 
-	"rts/internal/core"
+	"github.com/Inzaniak/rts/internal/core"
 )
 
 type Executor struct {
