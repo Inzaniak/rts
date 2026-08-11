@@ -1,0 +1,21 @@
+# Build outputs
+/rts
+*.exe
+*.test
+*.out
+
+# Coverage and profiling
+coverage.*
+*.prof
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
