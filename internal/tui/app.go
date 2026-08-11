@@ -25,6 +25,7 @@ const (
 	modeCreate
 	modeConfirmDelete
 	modeConfirmUpdate
+	modeHelp
 )
 
 type model struct {
@@ -43,6 +44,7 @@ type model struct {
 	cursor       int
 	detailOffset int
 	mode         mode
+	helpReturn   mode
 	input        string
 	status       string
 	width        int
@@ -128,6 +130,15 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 	if msg.Keystroke() == "shift+tab" {
 		key = "shift+tab"
+	}
+	if m.mode == modeHelp {
+		switch key {
+		case "?", "esc", "enter":
+			m.mode = m.helpReturn
+		case "q", "ctrl+c":
+			return m, tea.Quit
+		}
+		return m, nil
 	}
 	if m.mode == modeFilter || m.mode == modeCreate {
 		switch key {
@@ -283,7 +294,8 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "r":
 		m.reload()
 	case "?":
-		m.status = "tab filters • ↑/↓ category • ←/→ value • j/k move list • detail: ↑/↓ scroll, ←/→ switch, pgup/pgdown page • / search • n new peer • e edit • d delete • space enable/disable • r reload • q quit"
+		m.helpReturn = m.mode
+		m.mode = modeHelp
 	}
 	return m, nil
 }
@@ -299,7 +311,7 @@ func (m *model) handleMouse(msg tea.MouseClickMsg) {
 		return
 	}
 	switch m.mode {
-	case modeFilter, modeCreate, modeConfirmDelete, modeConfirmUpdate:
+	case modeFilter, modeCreate, modeConfirmDelete, modeConfirmUpdate, modeHelp:
 		return
 	}
 	switch msg.Y {
@@ -340,6 +352,9 @@ func (m *model) View() tea.View {
 }
 
 func (m *model) render() string {
+	if m.mode == modeHelp {
+		return m.renderHelp()
+	}
 	title := m.style(true, "#7D56F4").Render("RTS  Harness Configuration Manager")
 	subtitle := "user + project inventory"
 	if m.project != "" {
@@ -408,6 +423,58 @@ func (m *model) render() string {
 		}
 	}
 	return header + "\n\n" + strings.Join(rows, "\n") + "\n\n" + m.style(false, "#888888").Render(footer)
+}
+
+func (m *model) renderHelp() string {
+	title := m.style(true, "#7D56F4").Render("RTS  Keyboard Shortcuts")
+	section := func(name string) string {
+		return m.style(true, "#AAAAAA").Render(name)
+	}
+	shortcut := func(keys, action string) string {
+		return fmt.Sprintf("  %-22s %s", keys, action)
+	}
+	lines := []string{
+		title,
+		"",
+		section("Global"),
+		shortcut("?", "Open or close this screen"),
+		shortcut("q / ctrl+c", "Quit"),
+		shortcut("tab / shift+tab", "Move focus to or from filters"),
+		shortcut("/", "Search resources"),
+		shortcut("r", "Reload native files"),
+		"",
+		section("Resource list"),
+		shortcut("j / k, ↓ / ↑", "Move selection"),
+		shortcut("g / home", "Select first resource"),
+		shortcut("G / end", "Select last resource"),
+		shortcut("enter", "Open details"),
+		shortcut("n", "Create a peer resource"),
+		shortcut("e", "Edit selected resource"),
+		shortcut("d", "Delete selected resource"),
+		shortcut("space", "Enable or disable resource"),
+		"",
+		section("Filters"),
+		shortcut("↑ / ↓, k / j", "Select filter category"),
+		shortcut("← / →", "Change filter value"),
+		shortcut("space", "Cycle current filter value"),
+		shortcut("enter / esc / tab", "Return to resource list"),
+		"",
+		section("Detail view"),
+		shortcut("↑ / ↓", "Scroll one line"),
+		shortcut("page up / page down", "Scroll one page"),
+		shortcut("g / home, G / end", "Jump to top or bottom"),
+		shortcut("← / →", "Switch resource"),
+		shortcut("enter / esc", "Return to resource list"),
+		"",
+		section("Prompts"),
+		shortcut("enter", "Submit search or resource name"),
+		shortcut("backspace", "Delete previous character"),
+		shortcut("esc", "Cancel"),
+		shortcut("y / n", "Confirm or reject a change"),
+		"",
+		m.style(false, "#888888").Render("? / esc / enter close help • q quit"),
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m *model) renderDetail() string {

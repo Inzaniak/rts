@@ -103,6 +103,42 @@ func TestMouseClicksSelectTabs(t *testing.T) {
 	}
 }
 
+func TestQuestionMarkOpensDedicatedShortcutScreen(t *testing.T) {
+	svc := &service.Service{Registry: core.NewRegistry(adapters.All()...)}
+	m := newModel(svc, "", []core.Resource{{Name: "docs"}}, true)
+
+	m.handleKey(tea.KeyPressMsg(tea.Key{Code: '?', Text: "?"}))
+	if m.mode != modeHelp {
+		t.Fatalf("question mark mode = %d, want help", m.mode)
+	}
+	rendered := m.render()
+	for _, want := range []string{"Keyboard Shortcuts", "Resource list", "Filters", "Detail view", "Prompts"} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("help screen is missing %q:\n%s", want, rendered)
+		}
+	}
+	if strings.Contains(rendered, "HARNESS") {
+		t.Fatalf("help is not a dedicated screen:\n%s", rendered)
+	}
+
+	m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
+	if m.mode != modeList {
+		t.Fatalf("escape returned to mode %d, want list", m.mode)
+	}
+}
+
+func TestShortcutScreenReturnsToDetail(t *testing.T) {
+	svc := &service.Service{Registry: core.NewRegistry(adapters.All()...)}
+	m := newModel(svc, "", []core.Resource{{Name: "docs"}}, true)
+	m.mode = modeDetail
+
+	m.handleKey(tea.KeyPressMsg(tea.Key{Code: '?', Text: "?"}))
+	m.handleKey(tea.KeyPressMsg(tea.Key{Code: '?', Text: "?"}))
+	if m.mode != modeDetail {
+		t.Fatalf("question mark returned to mode %d, want detail", m.mode)
+	}
+}
+
 func TestScopeTabsUseStablePriority(t *testing.T) {
 	tabs := buildScopeTabs([]core.Resource{
 		{Scope: core.ScopeManaged},
