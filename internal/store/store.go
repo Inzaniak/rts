@@ -65,10 +65,6 @@ func (s *Store) migrate() error {
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL
 		);
-		CREATE TABLE IF NOT EXISTS kv (
-			key TEXT PRIMARY KEY,
-			value TEXT NOT NULL
-		);
 	`)
 	return err
 }
