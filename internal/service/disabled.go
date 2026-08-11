@@ -169,7 +169,7 @@ func (s *Service) enableStored(ctx context.Context, resource core.Resource, dryR
 	return change, result, err
 }
 
-func (s *Service) disabledResources(project string, filters Filters) ([]core.Resource, error) {
+func (s *Service) disabledResources(project string) ([]core.Resource, error) {
 	matches, err := filepath.Glob(filepath.Join(s.disabledRoot(), "manifests", "*.json"))
 	if err != nil {
 		return nil, err
@@ -183,21 +183,6 @@ func (s *Service) disabledResources(project string, filters Filters) ([]core.Res
 		resource := entry.Resource
 		if (resource.Scope == core.ScopeProject || resource.Scope == core.ScopeLocal) && resource.ProjectRoot != project {
 			continue
-		}
-		if filters.Harness != "" && resource.Harness != filters.Harness {
-			continue
-		}
-		if filters.Kind != "" && resource.Kind != filters.Kind {
-			continue
-		}
-		if filters.Scope != "" && resource.Scope != filters.Scope {
-			continue
-		}
-		if filters.Query != "" {
-			haystack := strings.ToLower(resource.Name + " " + resource.Path + " " + string(resource.Kind))
-			if !strings.Contains(haystack, strings.ToLower(filters.Query)) {
-				continue
-			}
 		}
 		enabled := false
 		resource.Enabled = &enabled

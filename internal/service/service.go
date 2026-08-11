@@ -91,22 +91,10 @@ func (s *Service) Inventory(ctx context.Context, project string, filters Filters
 					resource.Capabilities = append(resource.Capabilities, core.CanEnable)
 				}
 			}
-			if filters.Kind != "" && resource.Kind != filters.Kind {
-				continue
-			}
-			if filters.Scope != "" && resource.Scope != filters.Scope {
-				continue
-			}
-			if filters.Query != "" {
-				haystack := strings.ToLower(resource.Name + " " + resource.Path + " " + string(resource.Kind))
-				if !strings.Contains(haystack, strings.ToLower(filters.Query)) {
-					continue
-				}
-			}
 			result = append(result, resource)
 		}
 	}
-	disabled, err := s.disabledResources(project, filters)
+	disabled, err := s.disabledResources(project)
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +115,27 @@ func (s *Service) Inventory(ctx context.Context, project string, filters Filters
 		result = active
 	}
 	result = append(result, disabled...)
+	query := strings.ToLower(filters.Query)
+	filtered := result[:0]
+	for _, resource := range result {
+		if filters.Harness != "" && resource.Harness != filters.Harness {
+			continue
+		}
+		if filters.Kind != "" && resource.Kind != filters.Kind {
+			continue
+		}
+		if filters.Scope != "" && resource.Scope != filters.Scope {
+			continue
+		}
+		if query != "" {
+			haystack := strings.ToLower(resource.Name + " " + resource.Path + " " + string(resource.Kind))
+			if !strings.Contains(haystack, query) {
+				continue
+			}
+		}
+		filtered = append(filtered, resource)
+	}
+	result = filtered
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].Harness != result[j].Harness {
 			return result[i].Harness < result[j].Harness
