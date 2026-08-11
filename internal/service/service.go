@@ -243,7 +243,7 @@ func (s *Service) PlanToggle(ctx context.Context, resource core.Resource, enable
 	if err != nil {
 		return core.ChangeSet{}, err
 	}
-	return driver.PlanToggle(ctx, resource, enabled)
+	return driver.PlanEnable(ctx, resource)
 }
 
 func (s *Service) Doctor(ctx context.Context, project string, filters Filters) ([]core.Diagnostic, error) {

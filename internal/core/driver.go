@@ -10,7 +10,7 @@ type Driver interface {
 	PlanCreate(context.Context, Request) (ChangeSet, error)
 	PlanUpdate(context.Context, Resource, []byte) (ChangeSet, error)
 	PlanDelete(context.Context, Resource) (ChangeSet, error)
-	PlanToggle(context.Context, Resource, bool) (ChangeSet, error)
+	PlanEnable(context.Context, Resource) (ChangeSet, error)
 	Validate(context.Context, Resource) []Diagnostic
 	Docs() []string
 }

@@ -180,7 +180,7 @@ func (d *genericDriver) PlanUpdate(ctx context.Context, resource core.Resource, 
 	var updated []byte
 	var err error
 	if resource.Kind == core.KindMCP && resource.Locator != "" {
-		updated, err = d.updateMCP(resource, content, false, false)
+		updated, err = d.updateMCP(resource, content, false)
 	} else {
 		updated = content
 	}
@@ -214,7 +214,7 @@ func (d *genericDriver) PlanDelete(ctx context.Context, resource core.Resource) 
 		return core.ChangeSet{}, err
 	}
 	if resource.Kind == core.KindMCP && resource.Locator != "" {
-		updated, updateErr := d.updateMCP(resource, nil, true, false)
+		updated, updateErr := d.updateMCP(resource, nil, true)
 		if updateErr != nil {
 			return core.ChangeSet{}, updateErr
 		}
@@ -236,15 +236,15 @@ func (d *genericDriver) PlanDelete(ctx context.Context, resource core.Resource) 
 	}, nil
 }
 
-func (d *genericDriver) PlanToggle(ctx context.Context, resource core.Resource, enabled bool) (core.ChangeSet, error) {
+func (d *genericDriver) PlanEnable(ctx context.Context, resource core.Resource) (core.ChangeSet, error) {
 	_ = ctx
 	if resource.Kind != core.KindMCP || resource.Locator == "" {
-		return core.ChangeSet{}, fmt.Errorf("enable/disable is currently supported for MCP resources")
+		return core.ChangeSet{}, fmt.Errorf("native enable is only supported for MCP resources")
 	}
 	if resource.ReadOnly || !resource.Has(core.CanEnable) {
-		return core.ChangeSet{}, fmt.Errorf("resource cannot be enabled or disabled")
+		return core.ChangeSet{}, fmt.Errorf("resource cannot be enabled")
 	}
-	updated, err := d.updateMCP(resource, nil, false, enabled)
+	updated, err := d.updateMCP(resource, nil, false)
 	if err != nil {
 		return core.ChangeSet{}, err
 	}
@@ -252,16 +252,12 @@ func (d *genericDriver) PlanToggle(ctx context.Context, resource core.Resource, 
 	if err != nil {
 		return core.ChangeSet{}, err
 	}
-	action := "disable"
-	if enabled {
-		action = "enable"
-	}
 	return core.ChangeSet{
-		ID: uuid.NewString(), Summary: action + " MCP server " + resource.Name,
+		ID: uuid.NewString(), Summary: "enable MCP server " + resource.Name,
 		CreatedAt: time.Now().UTC(),
 		Operations: []core.Operation{{
 			Type: core.OpWrite, Path: resource.Path, Content: updated, ExpectedHash: hash,
-			Description: action + " entry in " + resource.Path,
+			Description: "enable entry in " + resource.Path,
 		}},
 	}, nil
 }
@@ -345,7 +341,7 @@ func (d *genericDriver) planCreateMCP(request core.Request) (core.ChangeSet, err
 	}, nil
 }
 
-func (d *genericDriver) updateMCP(resource core.Resource, content []byte, remove, enabled bool) ([]byte, error) {
+func (d *genericDriver) updateMCP(resource core.Resource, content []byte, remove bool) ([]byte, error) {
 	raw, err := os.ReadFile(resource.Path)
 	if err != nil {
 		return nil, err
@@ -367,10 +363,10 @@ func (d *genericDriver) updateMCP(resource core.Resource, content []byte, remove
 		entry, err = readMCPEntry(raw, *loc, resource.Locator)
 		if err == nil {
 			if loc.DisableKey != "" {
-				entry[loc.DisableKey] = !enabled
+				entry[loc.DisableKey] = false
 			}
 			if loc.EnableKey != "" {
-				entry[loc.EnableKey] = enabled
+				entry[loc.EnableKey] = true
 			}
 		}
 	}
