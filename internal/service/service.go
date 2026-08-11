@@ -562,40 +562,24 @@ func fingerprintStatus(previous, current string) string {
 
 func lifecycleCommand(harness core.Harness, action, spec string) (string, []string, error) {
 	command := string(harness)
-	if harness == core.Claude {
-		command = "claude"
-	}
 	if _, err := exec.LookPath(command); err != nil {
 		return "", nil, fmt.Errorf("%s executable was not found", command)
 	}
+	var verb string
 	switch harness {
-	case core.Claude:
-		verb := map[string]string{"install": "install", "update": "update", "uninstall": "uninstall"}[action]
-		if verb == "" {
-			return "", nil, fmt.Errorf("unsupported lifecycle action %q", action)
+	case core.Claude, core.Grok, core.Copilot:
+		if action == "install" || action == "update" || action == "uninstall" {
+			verb = action
 		}
-		return "claude", []string{"plugin", verb, spec}, nil
 	case core.Codex:
-		verb := map[string]string{"install": "add", "update": "update", "uninstall": "remove"}[action]
-		if verb == "" {
-			return "", nil, fmt.Errorf("unsupported lifecycle action %q", action)
-		}
-		return "codex", []string{"plugin", verb, spec}, nil
-	case core.Grok:
-		verb := map[string]string{"install": "install", "update": "update", "uninstall": "uninstall"}[action]
-		if verb == "" {
-			return "", nil, fmt.Errorf("unsupported lifecycle action %q", action)
-		}
-		return "grok", []string{"plugin", verb, spec}, nil
-	case core.Copilot:
-		verb := map[string]string{"install": "install", "update": "update", "uninstall": "uninstall"}[action]
-		if verb == "" {
-			return "", nil, fmt.Errorf("unsupported lifecycle action %q", action)
-		}
-		return "copilot", []string{"plugin", verb, spec}, nil
+		verb = map[string]string{"install": "add", "update": "update", "uninstall": "remove"}[action]
 	default:
 		return "", nil, fmt.Errorf("%s does not expose a stable native plugin lifecycle command in this adapter", harness)
 	}
+	if verb == "" {
+		return "", nil, fmt.Errorf("unsupported lifecycle action %q", action)
+	}
+	return command, []string{"plugin", verb, spec}, nil
 }
 
 func MarshalChange(change core.ChangeSet) []byte {
