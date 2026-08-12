@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -241,7 +240,7 @@ func applyOperation(ctx context.Context, op core.Operation) error {
 		if err := tmp.Close(); err != nil {
 			return err
 		}
-		return os.Rename(tmpName, op.Path)
+		return replaceFile(tmpName, op.Path)
 	case core.OpRemove:
 		info, err := os.Lstat(op.Path)
 		if errors.Is(err, os.ErrNotExist) {
@@ -268,7 +267,7 @@ func applyOperation(ctx context.Context, op core.Operation) error {
 		}
 		if err := os.Rename(op.Source, op.Path); err == nil {
 			return nil
-		} else if !errors.Is(err, syscall.EXDEV) {
+		} else if !isCrossDeviceError(err) {
 			return err
 		}
 		if err := copyPath(op.Source, op.Path); err != nil {

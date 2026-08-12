@@ -69,7 +69,7 @@ func New(drivers []core.Driver, state *store.Store, configRoot string) *Service 
 
 func (s *Service) Close() error { return s.Store.Close() }
 
-func (s *Service) Inventory(ctx context.Context, project string, filters Filters) ([]core.Resource, error) {
+func (s *Service) Inventory(project string, filters Filters) ([]core.Resource, error) {
 	project, err := normalizeProject(project)
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (s *Service) Inventory(ctx context.Context, project string, filters Filters
 		if filters.Harness != "" && driver.ID() != filters.Harness {
 			continue
 		}
-		resources, discoverErr := driver.Discover(ctx, project)
+		resources, discoverErr := driver.Discover(project)
 		if discoverErr != nil {
 			return nil, fmt.Errorf("discover %s: %w", driver.ID(), discoverErr)
 		}
@@ -156,8 +156,8 @@ func (s *Service) Installations(ctx context.Context) []core.Installation {
 	return result
 }
 
-func (s *Service) Find(ctx context.Context, project, idOrName string, filters Filters) (core.Resource, error) {
-	resources, err := s.Inventory(ctx, project, filters)
+func (s *Service) Find(project, idOrName string, filters Filters) (core.Resource, error) {
+	resources, err := s.Inventory(project, filters)
 	if err != nil {
 		return core.Resource{}, err
 	}
@@ -201,73 +201,53 @@ func EditablePath(resource core.Resource) string {
 	return path
 }
 
-func (s *Service) Create(ctx context.Context, request core.Request, dryRun bool) (core.ChangeSet, core.ApplyResult, error) {
+func (s *Service) PlanCreate(request core.Request) (core.ChangeSet, error) {
 	driver, err := s.Registry.Driver(request.Harness)
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
 	request.Project, err = normalizeProject(request.Project)
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
-	change, err := driver.PlanCreate(ctx, request)
-	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
-	}
-	result, err := s.apply(ctx, change, dryRun)
-	return change, result, err
+	return driver.PlanCreate(request)
 }
 
-func (s *Service) Update(ctx context.Context, resource core.Resource, content []byte, dryRun bool) (core.ChangeSet, core.ApplyResult, error) {
+func (s *Service) PlanUpdate(resource core.Resource, content []byte) (core.ChangeSet, error) {
 	driver, err := s.Registry.Driver(resource.Harness)
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
-	change, err := driver.PlanUpdate(ctx, resource, content)
-	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
-	}
-	result, err := s.apply(ctx, change, dryRun)
-	return change, result, err
+	return driver.PlanUpdate(resource, content)
 }
 
-func (s *Service) Delete(ctx context.Context, resource core.Resource, dryRun bool) (core.ChangeSet, core.ApplyResult, error) {
+func (s *Service) PlanDelete(resource core.Resource) (core.ChangeSet, error) {
 	driver, err := s.Registry.Driver(resource.Harness)
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
-	change, err := driver.PlanDelete(ctx, resource)
-	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
-	}
-	result, err := s.apply(ctx, change, dryRun)
-	return change, result, err
+	return driver.PlanDelete(resource)
 }
 
-func (s *Service) Toggle(ctx context.Context, resource core.Resource, enabled, dryRun bool) (core.ChangeSet, core.ApplyResult, error) {
+func (s *Service) PlanToggle(resource core.Resource, enabled bool) (core.ChangeSet, error) {
 	if isDisabledResource(resource) {
 		if !enabled {
-			return core.ChangeSet{}, core.ApplyResult{}, fmt.Errorf("resource is already disabled")
+			return core.ChangeSet{}, fmt.Errorf("resource is already disabled")
 		}
-		return s.enableStored(ctx, resource, dryRun)
+		return s.planEnableStored(resource)
 	}
 	if !enabled {
-		return s.disableStored(ctx, resource, dryRun)
+		return s.planDisableStored(resource)
 	}
 	driver, err := s.Registry.Driver(resource.Harness)
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
-	change, err := driver.PlanToggle(ctx, resource, enabled)
-	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
-	}
-	result, err := s.apply(ctx, change, dryRun)
-	return change, result, err
+	return driver.PlanEnable(resource)
 }
 
 func (s *Service) Doctor(ctx context.Context, project string, filters Filters) ([]core.Diagnostic, error) {
-	resources, err := s.Inventory(ctx, project, filters)
+	resources, err := s.Inventory(project, filters)
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +266,7 @@ func (s *Service) Doctor(ctx context.Context, project string, filters Filters) (
 	for _, resource := range resources {
 		driver, _ := s.Registry.Driver(resource.Harness)
 		if !(resource.ReadOnly && len(resource.Warnings) > 0) {
-			diagnostics = append(diagnostics, driver.Validate(ctx, resource)...)
+			diagnostics = append(diagnostics, driver.Validate(resource)...)
 		}
 		for _, warning := range resource.Warnings {
 			diagnostics = append(diagnostics, core.Diagnostic{
@@ -308,8 +288,8 @@ func (s *Service) Diff(resource core.Resource, proposed []byte) (string, error) 
 	})
 }
 
-func (s *Service) Link(ctx context.Context, project, sourceID string, targetIDs []string) (store.Link, error) {
-	resources, err := s.Inventory(ctx, project, Filters{})
+func (s *Service) Link(project, sourceID string, targetIDs []string) (store.Link, error) {
+	resources, err := s.Inventory(project, Filters{})
 	if err != nil {
 		return store.Link{}, err
 	}
@@ -341,8 +321,8 @@ func (s *Service) Link(ctx context.Context, project, sourceID string, targetIDs 
 	return link, nil
 }
 
-func (s *Service) Drift(ctx context.Context, project string) ([]Drift, error) {
-	resources, err := s.Inventory(ctx, project, Filters{})
+func (s *Service) Drift(project string) ([]Drift, error) {
+	resources, err := s.Inventory(project, Filters{})
 	if err != nil {
 		return nil, err
 	}
@@ -393,7 +373,7 @@ func (s *Service) Sync(ctx context.Context, project, linkID string, dryRun bool)
 	if selected == nil {
 		return nil, nil, fmt.Errorf("link %q was not found", linkID)
 	}
-	resources, err := s.Inventory(ctx, project, Filters{})
+	resources, err := s.Inventory(project, Filters{})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -424,7 +404,11 @@ func (s *Service) Sync(ctx context.Context, project, linkID string, dryRun bool)
 		if translateErr != nil {
 			return changes, results, translateErr
 		}
-		change, result, updateErr := s.Update(ctx, target, translated, dryRun)
+		change, updateErr := s.PlanUpdate(target, translated)
+		if updateErr != nil {
+			return changes, results, updateErr
+		}
+		result, updateErr := s.apply(ctx, change, dryRun)
 		if updateErr != nil {
 			return changes, results, updateErr
 		}
@@ -496,18 +480,17 @@ func translatePortable(source, target core.Resource, content []byte) ([]byte, er
 	return core.PrettyJSON(entry), nil
 }
 
-func (s *Service) NativeLifecycle(ctx context.Context, harness core.Harness, action, spec string, dryRun bool) (core.ChangeSet, core.ApplyResult, error) {
+func (s *Service) PlanNativeLifecycle(harness core.Harness, action, spec string) (core.ChangeSet, error) {
 	command, args, err := lifecycleCommand(harness, action, spec)
 	if err != nil {
-		return core.ChangeSet{}, core.ApplyResult{}, err
+		return core.ChangeSet{}, err
 	}
 	change := core.ChangeSet{
 		ID: uuid.NewString(), Summary: fmt.Sprintf("%s %s for %s", action, spec, harness), CreatedAt: time.Now().UTC(),
 		Operations: []core.Operation{{Type: core.OpCommand, Command: command, Args: args, Description: strings.Join(append([]string{command}, args...), " ")}},
 		Warnings:   []string{"native lifecycle commands may modify harness-managed caches or state outside RTS file backups"},
 	}
-	result, err := s.apply(ctx, change, dryRun)
-	return change, result, err
+	return change, nil
 }
 
 func (s *Service) Backups() ([]string, error) {
@@ -533,6 +516,10 @@ func (s *Service) Restore(ctx context.Context, backup string) (core.ApplyResult,
 		backup = filepath.Join(s.Executor.BackupRoot, backup)
 	}
 	return s.Executor.Restore(ctx, backup)
+}
+
+func (s *Service) Apply(ctx context.Context, change core.ChangeSet) (core.ApplyResult, error) {
+	return s.apply(ctx, change, false)
 }
 
 func (s *Service) apply(ctx context.Context, change core.ChangeSet, dryRun bool) (core.ApplyResult, error) {

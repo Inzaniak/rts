@@ -2,6 +2,7 @@ package selfupdate
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -70,6 +71,61 @@ func TestRunDoesNotDownloadWhenAlreadyCurrent(t *testing.T) {
 	}
 }
 
+func TestRunUsesWindowsZipRelease(t *testing.T) {
+	binary := []byte("new windows rts binary")
+	archive := testZipArchive(t, binary)
+	sum := sha256.Sum256(archive)
+	assetName := "rts_1.2.3_windows_amd64.zip"
+	client := testClient(func(request *http.Request) (string, int) {
+		switch request.URL.Path {
+		case "/latest":
+			return fmt.Sprintf(`{"tag_name":"v1.2.3","assets":[{"name":%q,"browser_download_url":"https://test/archive"},{"name":"checksums.txt","browser_download_url":"https://test/checksums"}]}`, assetName), http.StatusOK
+		case "/archive":
+			return string(archive), http.StatusOK
+		case "/checksums":
+			return fmt.Sprintf("%x  %s\n", sum, assetName), http.StatusOK
+		default:
+			return "not found", http.StatusNotFound
+		}
+	})
+	executable := filepath.Join(t.TempDir(), "rts.exe")
+	if err := os.WriteFile(executable, []byte("old"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Run(context.Background(), Options{
+		CurrentVersion: "1.0.0", APIURL: "https://test/latest", GOOS: "windows", GOARCH: "amd64",
+		Executable: executable, Client: client,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Updated {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	got, err := os.ReadFile(executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, binary) {
+		t.Fatalf("installed binary = %q, want %q", got, binary)
+	}
+}
+
+func TestWindowsArchiveNameAndExtraction(t *testing.T) {
+	if got, want := archiveName("1.2.3", "windows", "amd64"), "rts_1.2.3_windows_amd64.zip"; got != want {
+		t.Fatalf("archive name = %q, want %q", got, want)
+	}
+	binary := []byte("windows rts binary")
+	archive := testZipArchive(t, binary)
+	got, err := extractBinary(archive, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, binary) {
+		t.Fatalf("extracted binary = %q, want %q", got, binary)
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -104,6 +160,23 @@ func testArchive(t *testing.T, binary []byte) []byte {
 		t.Fatal(err)
 	}
 	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return output.Bytes()
+}
+
+func testZipArchive(t *testing.T, binary []byte) []byte {
+	t.Helper()
+	var output bytes.Buffer
+	writer := zip.NewWriter(&output)
+	file, err := writer.Create("rts.exe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.Write(binary); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
 		t.Fatal(err)
 	}
 	return output.Bytes()

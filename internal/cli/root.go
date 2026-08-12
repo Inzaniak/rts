@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,7 +36,7 @@ type app struct {
 	query   string
 }
 
-type mutation func(bool) (core.ChangeSet, core.ApplyResult, error)
+type mutation func() (core.ChangeSet, error)
 
 func Execute() error {
 	svc, err := service.Open(adapters.All())
@@ -82,7 +81,7 @@ func (a *app) rootCommand() *cobra.Command {
 		a.listCommand(), a.getCommand(), a.addCommand(), a.editCommand(), a.removeCommand(),
 		a.toggleCommand(true), a.toggleCommand(false), a.diffCommand(), a.doctorCommand(),
 		a.linkCommand(), a.unlinkCommand(), a.syncCommand(),
-		a.projectCommand(), a.backupCommand(), a.sourceCommand(), a.adapterCommand(),
+		a.projectCommand(), a.backupCommand(), a.adapterCommand(),
 		a.lifecycleCommand("install"), a.updateCommand(), a.lifecycleCommand("uninstall"),
 	)
 	return command
@@ -104,7 +103,7 @@ func (a *app) listCommand() *cobra.Command {
 					return err
 				}
 			}
-			resources, err := a.service.Inventory(cmd.Context(), a.project, filters)
+			resources, err := a.service.Inventory(a.project, filters)
 			if err != nil {
 				return err
 			}
@@ -127,7 +126,7 @@ func (a *app) getCommand() *cobra.Command {
 		Short: "Read one resource",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resource, err := a.find(cmd.Context(), args[0])
+			resource, err := a.find(args[0])
 			if err != nil {
 				return err
 			}
@@ -209,8 +208,8 @@ func (a *app) addCommand() *cobra.Command {
 				Harness: harness, Kind: kind, Scope: scope, Name: positional[1],
 				Project: a.project, Content: body, Force: force,
 			}
-			return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
-				return a.service.Create(cmd.Context(), request, dry)
+			return a.runMutation(cmd, func() (core.ChangeSet, error) {
+				return a.service.PlanCreate(request)
 			})
 		},
 	}
@@ -233,7 +232,7 @@ func (a *app) editCommand() *cobra.Command {
 		Short: "Edit a resource",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resource, err := a.find(cmd.Context(), args[0])
+			resource, err := a.find(args[0])
 			if err != nil {
 				return err
 			}
@@ -261,8 +260,8 @@ func (a *app) editCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
-				return a.service.Update(cmd.Context(), resource, body, dry)
+			return a.runMutation(cmd, func() (core.ChangeSet, error) {
+				return a.service.PlanUpdate(resource, body)
 			})
 		},
 	}
@@ -278,12 +277,12 @@ func (a *app) removeCommand() *cobra.Command {
 		Short:   "Remove a resource transactionally",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resource, err := a.find(cmd.Context(), args[0])
+			resource, err := a.find(args[0])
 			if err != nil {
 				return err
 			}
-			return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
-				return a.service.Delete(cmd.Context(), resource, dry)
+			return a.runMutation(cmd, func() (core.ChangeSet, error) {
+				return a.service.PlanDelete(resource)
 			})
 		},
 	}
@@ -299,12 +298,12 @@ func (a *app) toggleCommand(enabled bool) *cobra.Command {
 		Short: action + " a resource using native flags or RTS disabled storage",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resource, err := a.find(cmd.Context(), args[0])
+			resource, err := a.find(args[0])
 			if err != nil {
 				return err
 			}
-			return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
-				return a.service.Toggle(cmd.Context(), resource, enabled, dry)
+			return a.runMutation(cmd, func() (core.ChangeSet, error) {
+				return a.service.PlanToggle(resource, enabled)
 			})
 		},
 	}
@@ -317,7 +316,7 @@ func (a *app) diffCommand() *cobra.Command {
 		Short: "Preview replacement content as a unified diff",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resource, err := a.find(cmd.Context(), args[0])
+			resource, err := a.find(args[0])
 			if err != nil {
 				return err
 			}
@@ -381,7 +380,7 @@ func (a *app) linkCommand() *cobra.Command {
 		Short: "Link resources for explicit drift-aware synchronization",
 		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			link, err := a.service.Link(cmd.Context(), a.project, args[0], args[1:])
+			link, err := a.service.Link(a.project, args[0], args[1:])
 			if err != nil {
 				return err
 			}
@@ -411,7 +410,7 @@ func (a *app) syncCommand() *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				drift, err := a.service.Drift(cmd.Context(), a.project)
+				drift, err := a.service.Drift(a.project)
 				if err != nil {
 					return err
 				}
@@ -511,39 +510,6 @@ func (a *app) backupCommand() *cobra.Command {
 	return parent
 }
 
-func (a *app) sourceCommand() *cobra.Command {
-	parent := &cobra.Command{Use: "source", Short: "Manage remote marketplace and repository sources"}
-	var harness string
-	add := &cobra.Command{
-		Use: "add <name> <url>", Args: cobra.ExactArgs(2), Short: "Register a source",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			source := store.Source{Name: args[0], URL: args[1], Harness: harness}
-			if err := a.service.Store.AddSource(source); err != nil {
-				return err
-			}
-			return a.output(cmd, source)
-		},
-	}
-	add.Flags().StringVar(&harness, "for", "", "optional harness name")
-	parent.AddCommand(add,
-		&cobra.Command{
-			Use: "list", Short: "List configured sources",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				sources, err := a.service.Store.Sources()
-				if err != nil {
-					return err
-				}
-				return a.output(cmd, sources)
-			},
-		},
-		&cobra.Command{
-			Use: "remove <name>", Args: cobra.ExactArgs(1), Short: "Remove a source",
-			RunE: func(cmd *cobra.Command, args []string) error { return a.service.Store.RemoveSource(args[0]) },
-		},
-	)
-	return parent
-}
-
 func (a *app) adapterCommand() *cobra.Command {
 	parent := &cobra.Command{Use: "adapter", Short: "Inspect modular harness adapters"}
 	parent.AddCommand(
@@ -585,8 +551,8 @@ func (a *app) lifecycleCommand(action string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
-				return a.service.NativeLifecycle(cmd.Context(), harness, action, args[0], dry)
+			return a.runMutation(cmd, func() (core.ChangeSet, error) {
+				return a.service.PlanNativeLifecycle(harness, action, args[0])
 			})
 		},
 	}
@@ -606,8 +572,8 @@ func (a *app) updateCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return a.runMutation(cmd, func(dry bool) (core.ChangeSet, core.ApplyResult, error) {
-					return a.service.NativeLifecycle(cmd.Context(), harness, "update", args[0], dry)
+				return a.runMutation(cmd, func() (core.ChangeSet, error) {
+					return a.service.PlanNativeLifecycle(harness, "update", args[0])
 				})
 			}
 			if a.dryRun {
@@ -664,16 +630,16 @@ func (a *app) filters() (service.Filters, error) {
 	return filters, nil
 }
 
-func (a *app) find(ctx context.Context, id string) (core.Resource, error) {
+func (a *app) find(id string) (core.Resource, error) {
 	filters, err := a.filters()
 	if err != nil {
 		return core.Resource{}, err
 	}
-	return a.service.Find(ctx, a.project, id, filters)
+	return a.service.Find(a.project, id, filters)
 }
 
 func (a *app) runMutation(cmd *cobra.Command, mutate mutation) error {
-	change, _, err := mutate(true)
+	change, err := mutate()
 	if err != nil {
 		return err
 	}
@@ -696,12 +662,12 @@ func (a *app) runMutation(cmd *cobra.Command, mutate mutation) error {
 			return errors.New("cancelled")
 		}
 	}
-	appliedChange, result, err := mutate(false)
+	result, err := a.service.Apply(cmd.Context(), change)
 	if err != nil {
 		return err
 	}
 	if a.json {
-		return writeJSON(cmd.OutOrStdout(), core.NewEnvelope(map[string]any{"change": appliedChange, "result": result}))
+		return writeJSON(cmd.OutOrStdout(), core.NewEnvelope(map[string]any{"change": change, "result": result}))
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "Applied %s\nBackup: %s\n", result.TransactionID, result.BackupDir)
 	return nil

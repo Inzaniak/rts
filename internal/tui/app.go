@@ -49,27 +49,21 @@ type model struct {
 	noColor      bool
 }
 
-type harnessTab struct {
+type tab[T any] struct {
 	label string
-	value core.Harness
+	value T
 }
 
-type kindTab struct {
-	label string
-	value core.Kind
-}
-
-type scopeTab struct {
-	label string
-	value core.Scope
-}
+type harnessTab = tab[core.Harness]
+type kindTab = tab[core.Kind]
+type scopeTab = tab[core.Scope]
 
 type editorDone struct {
 	err error
 }
 
 func Run(svc *service.Service, project string, noColor bool) error {
-	resources, err := svc.Inventory(context.Background(), project, service.Filters{})
+	resources, err := svc.Inventory(project, service.Filters{})
 	if err != nil {
 		return err
 	}
@@ -296,19 +290,19 @@ func (m *model) handleMouse(msg tea.MouseClickMsg) {
 	}
 	switch msg.Y {
 	case 2:
-		labels := harnessTabLabels(m.harnessTabs)
+		labels := tabLabels(m.harnessTabs)
 		if index := tabIndexAt("Harness", labels, m.harnessIndex, m.width, msg.X); index >= 0 {
 			m.selectHarness(index)
 			m.focusFilterRow(0)
 		}
 	case 3:
-		labels := kindTabLabels(m.kindTabs)
+		labels := tabLabels(m.kindTabs)
 		if index := tabIndexAt("Kind", labels, m.kindIndex, m.width, msg.X); index >= 0 {
 			m.selectKind(index)
 			m.focusFilterRow(1)
 		}
 	case 4:
-		labels := scopeTabLabels(m.scopeTabs)
+		labels := tabLabels(m.scopeTabs)
 		if index := tabIndexAt("Scope", labels, m.scopeIndex, m.width, msg.X); index >= 0 {
 			m.selectScope(index)
 			m.focusFilterRow(2)
@@ -367,7 +361,9 @@ func (m *model) render() string {
 		subtitle = m.project
 	}
 	header := title + "\n" + m.style(false, "#888888").Render(subtitle) +
-		"\n" + m.renderHarnessTabs() + "\n" + m.renderKindTabs() + "\n" + m.renderScopeTabs()
+		"\n" + m.renderTabs("Harness", tabLabels(m.harnessTabs), m.harnessIndex, m.filterFocus && m.filterRow == 0) +
+		"\n" + m.renderTabs("Kind", tabLabels(m.kindTabs), m.kindIndex, m.filterFocus && m.filterRow == 1) +
+		"\n" + m.renderTabs("Scope", tabLabels(m.scopeTabs), m.scopeIndex, m.filterFocus && m.filterRow == 2)
 	if m.mode == modeDetail {
 		return header + "\n\n" + m.renderDetail()
 	}
@@ -724,7 +720,7 @@ func (m *model) reload() {
 		selectedID = selected.ID
 		selectedKey = selected.Key()
 	}
-	resources, err := m.service.Inventory(context.Background(), m.project, service.Filters{})
+	resources, err := m.service.Inventory(m.project, service.Filters{})
 	if err != nil {
 		m.status = err.Error()
 		return
@@ -765,10 +761,13 @@ func (m *model) createSelected() {
 	if selected == nil || strings.TrimSpace(m.input) == "" {
 		return
 	}
-	_, _, err := m.service.Create(context.Background(), core.Request{
+	change, err := m.service.PlanCreate(core.Request{
 		Harness: selected.Harness, Kind: selected.Kind, Scope: selected.Scope,
 		Name: strings.TrimSpace(m.input), Project: m.project,
-	}, false)
+	})
+	if err == nil {
+		_, err = m.service.Apply(context.Background(), change)
+	}
 	if err != nil {
 		m.status = err.Error()
 		m.mode = modeList
@@ -784,7 +783,10 @@ func (m *model) deleteSelected() {
 	if selected == nil {
 		return
 	}
-	_, _, err := m.service.Delete(context.Background(), *selected, false)
+	change, err := m.service.PlanDelete(*selected)
+	if err == nil {
+		_, err = m.service.Apply(context.Background(), change)
+	}
 	if err != nil {
 		m.status = err.Error()
 		m.mode = modeList
@@ -800,7 +802,10 @@ func (m *model) toggleSelected(enabled bool) {
 	if selected == nil {
 		return
 	}
-	_, _, err := m.service.Toggle(context.Background(), *selected, enabled, false)
+	change, err := m.service.PlanToggle(*selected, enabled)
+	if err == nil {
+		_, err = m.service.Apply(context.Background(), change)
+	}
 	if err != nil {
 		m.status = err.Error()
 		return
@@ -829,18 +834,6 @@ func (m *model) editSelected() tea.Cmd {
 	})
 }
 
-func (m *model) renderHarnessTabs() string {
-	return m.renderTabs("Harness", harnessTabLabels(m.harnessTabs), m.harnessIndex, m.filterFocus && m.filterRow == 0)
-}
-
-func (m *model) renderKindTabs() string {
-	return m.renderTabs("Kind", kindTabLabels(m.kindTabs), m.kindIndex, m.filterFocus && m.filterRow == 1)
-}
-
-func (m *model) renderScopeTabs() string {
-	return m.renderTabs("Scope", scopeTabLabels(m.scopeTabs), m.scopeIndex, m.filterFocus && m.filterRow == 2)
-}
-
 func (m *model) renderTabs(prefix string, labels []string, active int, focused bool) string {
 	prefixColor := "#888888"
 	if focused {
@@ -867,23 +860,7 @@ func (m *model) renderTabs(prefix string, labels []string, active int, focused b
 	return strings.Join(parts, " ")
 }
 
-func harnessTabLabels(tabs []harnessTab) []string {
-	labels := make([]string, len(tabs))
-	for index, tab := range tabs {
-		labels[index] = tab.label
-	}
-	return labels
-}
-
-func kindTabLabels(tabs []kindTab) []string {
-	labels := make([]string, len(tabs))
-	for index, tab := range tabs {
-		labels[index] = tab.label
-	}
-	return labels
-}
-
-func scopeTabLabels(tabs []scopeTab) []string {
+func tabLabels[T any](tabs []tab[T]) []string {
 	labels := make([]string, len(tabs))
 	for index, tab := range tabs {
 		labels[index] = tab.label

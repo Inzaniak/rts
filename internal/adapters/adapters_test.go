@@ -1,7 +1,6 @@
 package adapters
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,14 +20,14 @@ func TestClaudeProjectDiscoveryAndMCPMutation(t *testing.T) {
 	os.WriteFile(mcpPath, []byte("{\n  // retain me\n  \"mcpServers\": {}\n}\n"), 0o644)
 
 	driver := claude()
-	resources, err := driver.Discover(context.Background(), project)
+	resources, err := driver.Discover(project)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !hasResource(resources, core.KindSkill, "review") {
 		t.Fatal("Claude project skill was not discovered")
 	}
-	change, err := driver.PlanCreate(context.Background(), core.Request{
+	change, err := driver.PlanCreate(core.Request{
 		Harness: core.Claude, Kind: core.KindMCP, Scope: core.ScopeProject,
 		Name: "docs", Project: project, Content: []byte(`{"url":"https://example.com/mcp"}`),
 	})
@@ -52,7 +51,7 @@ enabled = true
 `)
 	os.WriteFile(filepath.Join(home, "config.toml"), raw, 0o644)
 	driver := codex()
-	resources, err := driver.Discover(context.Background(), "")
+	resources, err := driver.Discover("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +68,7 @@ enabled = true
 	if config["url"] != "https://example.com/mcp" {
 		t.Fatalf("native MCP payload missing: %#v", config)
 	}
-	change, err := driver.PlanUpdate(context.Background(), *mcp, []byte(`{"url":"https://new.example/mcp","enabled":true}`))
+	change, err := driver.PlanUpdate(*mcp, []byte(`{"url":"https://new.example/mcp","enabled":true}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +123,7 @@ enabled = false
 		t.Fatal(err)
 	}
 
-	resources, err := codex().Discover(context.Background(), "")
+	resources, err := codex().Discover("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +174,7 @@ enabled = true
 	}
 
 	driver := grok()
-	resources, err := driver.Discover(context.Background(), project)
+	resources, err := driver.Discover(project)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +188,7 @@ enabled = true
 	if mcp == nil || mcp.Scope != core.ScopeProject {
 		t.Fatalf("Grok project MCP server was not discovered: %#v", mcp)
 	}
-	change, err := driver.PlanUpdate(context.Background(), *mcp, []byte(`{"url":"https://new.example/mcp","enabled":false}`))
+	change, err := driver.PlanUpdate(*mcp, []byte(`{"url":"https://new.example/mcp","enabled":false}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +204,7 @@ func TestGrokManagedPoliciesAreReadOnly(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, "requirements.toml"), []byte("disable_api_key_auth = true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	resources, err := grok().Discover(context.Background(), "")
+	resources, err := grok().Discover("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +278,7 @@ func TestDirectoryResourceUsesDeclaredMainFile(t *testing.T) {
 		t.Fatalf("main path = %s, want %s", got, manifest)
 	}
 	driver := &genericDriver{id: core.Claude}
-	if diagnostics := driver.Validate(context.Background(), resources[0]); len(diagnostics) != 0 {
+	if diagnostics := driver.Validate(resources[0]); len(diagnostics) != 0 {
 		t.Fatalf("unexpected diagnostics: %#v", diagnostics)
 	}
 }

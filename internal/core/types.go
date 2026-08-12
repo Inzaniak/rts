@@ -55,7 +55,6 @@ const (
 	KindKeybindings  Kind = "keybindings"
 	KindProfile      Kind = "profile"
 	KindPermissions  Kind = "permissions"
-	KindMemory       Kind = "memory"
 	KindExtension    Kind = "extension"
 	KindWorktree     Kind = "worktree"
 )
@@ -64,7 +63,7 @@ var Kinds = []Kind{
 	KindSettings, KindInstructions, KindRule, KindSkill, KindCommand, KindAgent,
 	KindWorkflow, KindMCP, KindHook, KindPlugin, KindMarketplace, KindLSP,
 	KindTool, KindTheme, KindOutputStyle, KindKeybindings, KindProfile,
-	KindPermissions, KindMemory, KindExtension, KindWorktree,
+	KindPermissions, KindExtension, KindWorktree,
 }
 
 type Capability string

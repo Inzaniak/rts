@@ -35,7 +35,7 @@ func TestExplicitSkillSyncDetectsAndResolvesDrift(t *testing.T) {
 	}
 	defer state.Close()
 	svc := New(adapters.All(), state, configRoot)
-	resources, err := svc.Inventory(context.Background(), project, Filters{Kind: core.KindSkill})
+	resources, err := svc.Inventory(project, Filters{Kind: core.KindSkill})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,13 +51,13 @@ func TestExplicitSkillSyncDetectsAndResolvesDrift(t *testing.T) {
 	if source.ID == "" || target.ID == "" {
 		t.Fatalf("expected source and target resources, found %#v", resources)
 	}
-	link, err := svc.Link(context.Background(), project, source.ID, []string{target.ID})
+	link, err := svc.Link(project, source.ID, []string{target.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
 	updated := []byte("---\nname: review\ndescription: Review code.\n---\n\nNew instructions.\n")
 	os.WriteFile(filepath.Join(sourcePath, "SKILL.md"), updated, 0o644)
-	drift, err := svc.Drift(context.Background(), project)
+	drift, err := svc.Drift(project)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestExplicitSkillSyncDetectsAndResolvesDrift(t *testing.T) {
 	if string(got) != string(updated) {
 		t.Fatalf("target was not synchronized:\n%s", got)
 	}
-	drift, err = svc.Drift(context.Background(), project)
+	drift, err = svc.Drift(project)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestDisableAndEnableSkillDirectoryWithCollisionProtection(t *testing.T) {
 	if resource.Enabled == nil || !*resource.Enabled || !resource.Has(core.CanEnable) {
 		t.Fatalf("active resource is not toggleable: %#v", resource)
 	}
-	change, _, err := svc.Toggle(context.Background(), resource, false, true)
+	change, err := svc.PlanToggle(resource, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestDisableAndEnableSkillDirectoryWithCollisionProtection(t *testing.T) {
 	if matches, _ := filepath.Glob(filepath.Join(configRoot, "disabled", "manifests", "*.json")); len(matches) != 0 {
 		t.Fatalf("dry-run created disabled state: %#v", matches)
 	}
-	if _, _, err := svc.Toggle(context.Background(), resource, false, false); err != nil {
+	if err := planAndApplyToggle(svc, resource, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Lstat(skillPath); !os.IsNotExist(err) {
@@ -178,7 +178,7 @@ func TestDisableAndEnableSkillDirectoryWithCollisionProtection(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(skillPath, "SKILL.md"), []byte("collision\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := svc.Toggle(context.Background(), disabled, true, false); err == nil {
+	if _, err := svc.PlanToggle(disabled, true); err == nil {
 		t.Fatal("expected enable collision error")
 	}
 	if got, _ := os.ReadFile(filepath.Join(skillPath, "SKILL.md")); string(got) != "collision\n" {
@@ -187,7 +187,7 @@ func TestDisableAndEnableSkillDirectoryWithCollisionProtection(t *testing.T) {
 	if err := os.RemoveAll(skillPath); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := svc.Toggle(context.Background(), disabled, true, false); err != nil {
+	if err := planAndApplyToggle(svc, disabled, true); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := os.ReadFile(filepath.Join(skillPath, "SKILL.md")); string(got) != string(content) {
@@ -226,11 +226,11 @@ func TestDisableAndEnableSymlinkedSkill(t *testing.T) {
 	svc := New(adapters.All(), state, configRoot)
 
 	resource := findInventoryResource(t, svc, "", core.Claude, core.KindSkill, "linked")
-	if _, _, err := svc.Toggle(context.Background(), resource, false, false); err != nil {
+	if err := planAndApplyToggle(svc, resource, false); err != nil {
 		t.Fatal(err)
 	}
 	disabled := findInventoryResource(t, svc, "", core.Claude, core.KindSkill, "linked")
-	if _, _, err := svc.Toggle(context.Background(), disabled, true, false); err != nil {
+	if err := planAndApplyToggle(svc, disabled, true); err != nil {
 		t.Fatal(err)
 	}
 	if got, err := os.Readlink(skillPath); err != nil || got != target {
@@ -263,7 +263,7 @@ enabled = true
 	svc := New(adapters.All(), state, configRoot)
 
 	resource := findInventoryResource(t, svc, "", core.Codex, core.KindMCP, "docs")
-	if _, _, err := svc.Toggle(context.Background(), resource, false, false); err != nil {
+	if err := planAndApplyToggle(svc, resource, false); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(configPath)
@@ -285,7 +285,7 @@ url = "https://collision.example/mcp"
 	if !isDisabledResource(occupied) || !strings.Contains(strings.Join(occupied.Warnings, " "), "occupied") {
 		t.Fatalf("disabled collision was not authoritative: %#v", occupied)
 	}
-	if _, _, err := svc.Toggle(context.Background(), occupied, true, false); err == nil {
+	if _, err := svc.PlanToggle(occupied, true); err == nil {
 		t.Fatal("expected embedded-entry collision error")
 	}
 	raw, _ = os.ReadFile(configPath)
@@ -295,7 +295,7 @@ url = "https://collision.example/mcp"
 	if err := os.WriteFile(configPath, []byte(`model = "keep-me"`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := svc.Toggle(context.Background(), disabled, true, false); err != nil {
+	if err := planAndApplyToggle(svc, disabled, true); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ = os.ReadFile(configPath)
@@ -313,7 +313,7 @@ func findInventoryResource(
 	name string,
 ) core.Resource {
 	t.Helper()
-	resources, err := svc.Inventory(context.Background(), project, Filters{Harness: harness, Kind: kind})
+	resources, err := svc.Inventory(project, Filters{Harness: harness, Kind: kind})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,4 +324,13 @@ func findInventoryResource(
 	}
 	t.Fatalf("resource %s/%s/%s was not found in %#v", harness, kind, name, resources)
 	return core.Resource{}
+}
+
+func planAndApplyToggle(svc *Service, resource core.Resource, enabled bool) error {
+	change, err := svc.PlanToggle(resource, enabled)
+	if err != nil {
+		return err
+	}
+	_, err = svc.Apply(context.Background(), change)
+	return err
 }
