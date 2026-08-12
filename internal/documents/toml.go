@@ -29,11 +29,25 @@ func SetTOMLTable(raw []byte, prefix, name string, values map[string]any) ([]byt
 
 func DeleteTOMLTable(raw []byte, prefix, name string) ([]byte, error) {
 	header := "[" + prefix + "." + quoteTOMLSegment(name) + "]"
-	start, end := findTOMLTable(raw, header)
-	if start < 0 {
+	descendantPrefix := strings.TrimSuffix(header, "]") + "."
+	lines := bytes.SplitAfter(raw, []byte("\n"))
+	found := false
+	deleting := false
+	var out []byte
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(string(line))
+		if strings.HasPrefix(trimmed, "[") {
+			deleting = trimmed == header ||
+				(strings.HasPrefix(trimmed, descendantPrefix) && strings.HasSuffix(trimmed, "]"))
+			found = found || deleting
+		}
+		if !deleting {
+			out = append(out, line...)
+		}
+	}
+	if !found {
 		return nil, fmt.Errorf("TOML table %s does not exist", header)
 	}
-	out := splice(raw, start, end, nil)
 	out = bytes.TrimRight(out, "\n")
 	if len(out) > 0 {
 		out = append(out, '\n')

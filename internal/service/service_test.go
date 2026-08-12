@@ -307,6 +307,64 @@ url = "https://collision.example/mcp"
 	}
 }
 
+func TestDisableAndEnableEmbeddedMCPEntryWithNestedTOML(t *testing.T) {
+	root := t.TempDir()
+	codexHome := filepath.Join(root, "codex")
+	configRoot := filepath.Join(root, "rts")
+	t.Setenv("CODEX_HOME", codexHome)
+	if err := os.MkdirAll(codexHome, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(codexHome, "config.toml")
+	if err := os.WriteFile(configPath, []byte(`model = "keep-me"
+
+[mcp_servers.node_repl]
+command = "node"
+args = ["repl.js"]
+
+[mcp_servers.node_repl.env]
+NODE_PATH = "/tmp/modules"
+
+[mcp_servers.docs]
+url = "https://example.com/mcp"
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Open(filepath.Join(configRoot, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer state.Close()
+	svc := New(adapters.All(), state, configRoot)
+
+	resource := findInventoryResource(t, svc, "", core.Codex, core.KindMCP, "node_repl")
+	if err := planAndApplyToggle(svc, resource, false); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "mcp_servers.node_repl") {
+		t.Fatalf("MCP disable left nested node_repl configuration:\n%s", raw)
+	}
+	if !strings.Contains(string(raw), "[mcp_servers.docs]") || !strings.Contains(string(raw), `model = "keep-me"`) {
+		t.Fatalf("MCP disable changed unrelated TOML:\n%s", raw)
+	}
+
+	disabled := findInventoryResource(t, svc, "", core.Codex, core.KindMCP, "node_repl")
+	if err := planAndApplyToggle(svc, disabled, true); err != nil {
+		t.Fatal(err)
+	}
+	raw, err = os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `command = "node"`) || !strings.Contains(string(raw), `NODE_PATH = "/tmp/modules"`) {
+		t.Fatalf("MCP restore lost nested node_repl configuration:\n%s", raw)
+	}
+}
+
 func findInventoryResource(
 	t *testing.T,
 	svc *Service,
