@@ -29,14 +29,23 @@ another directory:
 curl -fsSL https://raw.githubusercontent.com/Inzaniak/rts/main/install.sh | RTS_INSTALL_DIR=/usr/local/bin sh
 ```
 
+On Windows, run this from PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/Inzaniak/rts/main/install.ps1 | iex
+```
+
+The Windows installer writes to `%LOCALAPPDATA%\Programs\rts` and adds that
+directory to the user `PATH`. Set `RTS_INSTALL_DIR` to choose another location.
+
 Alternatively, install directly from the Go module:
 
 ```sh
 go install github.com/Inzaniak/rts/cmd/rts@latest
 ```
 
-RTS requires macOS or Linux on `amd64` or `arm64`. Update an installed binary
-from the latest GitHub release with:
+RTS supports macOS, Linux, and Windows on `amd64` or `arm64`. Update an installed
+binary from the latest GitHub release with:
 
 ```sh
 rts update

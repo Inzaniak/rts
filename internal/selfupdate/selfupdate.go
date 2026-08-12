@@ -2,6 +2,7 @@ package selfupdate
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -50,10 +51,6 @@ type release struct {
 
 func Run(ctx context.Context, options Options) (Result, error) {
 	options = defaults(options)
-	if options.GOOS == "windows" {
-		return Result{}, errors.New("self-update is not supported on Windows; install the latest release manually")
-	}
-
 	latest, err := fetchRelease(ctx, options)
 	if err != nil {
 		return Result{}, err
@@ -64,7 +61,7 @@ func Run(ctx context.Context, options Options) (Result, error) {
 	}
 
 	version := strings.TrimPrefix(latest.TagName, "v")
-	assetName := fmt.Sprintf("rts_%s_%s_%s.tar.gz", version, options.GOOS, options.GOARCH)
+	assetName := archiveName(version, options.GOOS, options.GOARCH)
 	archiveURL, checksumURL := assetURLs(latest, assetName)
 	if archiveURL == "" {
 		return Result{}, fmt.Errorf("release %s has no binary for %s/%s", latest.TagName, options.GOOS, options.GOARCH)
@@ -93,11 +90,19 @@ func Run(ctx context.Context, options Options) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if err := replace(options.Executable, binary); err != nil {
+	if err := replaceExecutable(options.Executable, binary); err != nil {
 		return Result{}, err
 	}
 	result.Updated = true
 	return result, nil
+}
+
+func archiveName(version, goos, goarch string) string {
+	extension := ".tar.gz"
+	if goos == "windows" {
+		extension = ".zip"
+	}
+	return fmt.Sprintf("rts_%s_%s_%s%s", version, goos, goarch, extension)
 }
 
 func defaults(options Options) Options {
@@ -190,15 +195,18 @@ func checksumFor(contents []byte, name string) (string, error) {
 }
 
 func extractBinary(contents []byte, goos string) ([]byte, error) {
+	if goos == "windows" {
+		return extractZipBinary(contents)
+	}
+	return extractTarBinary(contents, "rts")
+}
+
+func extractTarBinary(contents []byte, want string) ([]byte, error) {
 	gz, err := gzip.NewReader(bytes.NewReader(contents))
 	if err != nil {
 		return nil, fmt.Errorf("open release archive: %w", err)
 	}
 	defer gz.Close()
-	want := "rts"
-	if goos == "windows" {
-		want += ".exe"
-	}
 	reader := tar.NewReader(gz)
 	for {
 		header, err := reader.Next()
@@ -222,39 +230,32 @@ func extractBinary(contents []byte, goos string) ([]byte, error) {
 	return nil, fmt.Errorf("release archive does not contain %s", want)
 }
 
-func replace(path string, binary []byte) error {
-	if path == "" {
-		return errors.New("cannot locate the current executable")
-	}
-	info, err := os.Stat(path)
+func extractZipBinary(contents []byte) ([]byte, error) {
+	reader, err := zip.NewReader(bytes.NewReader(contents), int64(len(contents)))
 	if err != nil {
-		return fmt.Errorf("inspect current executable: %w", err)
+		return nil, fmt.Errorf("open release archive: %w", err)
 	}
-	temp, err := os.CreateTemp(filepath.Dir(path), ".rts-update-*")
-	if err != nil {
-		return fmt.Errorf("prepare update next to %s: %w", path, err)
+	for _, file := range reader.File {
+		if !file.FileInfo().IsDir() && filepath.Base(file.Name) == "rts.exe" {
+			stream, err := file.Open()
+			if err != nil {
+				return nil, err
+			}
+			binary, readErr := io.ReadAll(io.LimitReader(stream, maxArchive+1))
+			closeErr := stream.Close()
+			if readErr != nil {
+				return nil, readErr
+			}
+			if closeErr != nil {
+				return nil, closeErr
+			}
+			if len(binary) > maxArchive {
+				return nil, errors.New("binary exceeds size limit")
+			}
+			return binary, nil
+		}
 	}
-	tempPath := temp.Name()
-	defer os.Remove(tempPath)
-	if _, err := temp.Write(binary); err != nil {
-		temp.Close()
-		return err
-	}
-	if err := temp.Chmod(info.Mode().Perm()); err != nil {
-		temp.Close()
-		return err
-	}
-	if err := temp.Sync(); err != nil {
-		temp.Close()
-		return err
-	}
-	if err := temp.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tempPath, path); err != nil {
-		return fmt.Errorf("replace %s: %w (try again with permission to write that directory)", path, err)
-	}
-	return nil
+	return nil, errors.New("release archive does not contain rts.exe")
 }
 
 func sameVersion(current, latest string) bool {
