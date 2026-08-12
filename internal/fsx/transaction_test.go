@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -38,9 +39,11 @@ func TestApplyBackupAndRestore(t *testing.T) {
 	if got, _ := os.ReadFile(target); string(got) != "before\n" {
 		t.Fatalf("unexpected restored content %q", got)
 	}
-	info, _ := os.Stat(target)
-	if info.Mode().Perm() != 0o640 {
-		t.Fatalf("mode changed to %o", info.Mode().Perm())
+	if runtime.GOOS != "windows" {
+		info, _ := os.Stat(target)
+		if info.Mode().Perm() != 0o640 {
+			t.Fatalf("mode changed to %o", info.Mode().Perm())
+		}
 	}
 }
 

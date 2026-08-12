@@ -82,6 +82,7 @@ func TestCodexDiscoversUserSystemAndEnabledPluginSkills(t *testing.T) {
 	userHome := t.TempDir()
 	codexHome := filepath.Join(userHome, ".codex")
 	t.Setenv("HOME", userHome)
+	t.Setenv("USERPROFILE", userHome)
 	t.Setenv("CODEX_HOME", codexHome)
 
 	writeSkill := func(path string) {

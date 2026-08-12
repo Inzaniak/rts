@@ -19,7 +19,7 @@ import (
 
 func TestRunReplacesExecutableAfterVerification(t *testing.T) {
 	binary := []byte("new rts binary")
-	archive := testArchive(t, binary)
+	archive := testArchiveForOS(t, binary, runtime.GOOS)
 	sum := sha256.Sum256(archive)
 	assetName := fmt.Sprintf("rts_1.2.3_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH)
 
@@ -56,6 +56,14 @@ func TestRunReplacesExecutableAfterVerification(t *testing.T) {
 	if !bytes.Equal(got, binary) {
 		t.Fatalf("installed binary = %q, want %q", got, binary)
 	}
+}
+
+func testArchiveForOS(t *testing.T, binary []byte, goos string) []byte {
+	t.Helper()
+	if goos == "windows" {
+		return testZipArchive(t, binary)
+	}
+	return testArchive(t, binary)
 }
 
 func TestRunDoesNotDownloadWhenAlreadyCurrent(t *testing.T) {
