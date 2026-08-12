@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -193,9 +194,11 @@ func TestDisableAndEnableSkillDirectoryWithCollisionProtection(t *testing.T) {
 	if got, _ := os.ReadFile(filepath.Join(skillPath, "SKILL.md")); string(got) != string(content) {
 		t.Fatalf("restored content = %q", got)
 	}
-	info, _ := os.Stat(filepath.Join(skillPath, "SKILL.md"))
-	if info.Mode().Perm() != 0o640 {
-		t.Fatalf("restored mode = %o", info.Mode().Perm())
+	if runtime.GOOS != "windows" {
+		info, _ := os.Stat(filepath.Join(skillPath, "SKILL.md"))
+		if info.Mode().Perm() != 0o640 {
+			t.Fatalf("restored mode = %o", info.Mode().Perm())
+		}
 	}
 }
 
