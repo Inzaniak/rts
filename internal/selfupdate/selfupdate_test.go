@@ -21,7 +21,7 @@ func TestRunReplacesExecutableAfterVerification(t *testing.T) {
 	binary := []byte("new rts binary")
 	archive := testArchiveForOS(t, binary, runtime.GOOS)
 	sum := sha256.Sum256(archive)
-	assetName := fmt.Sprintf("rts_1.2.3_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH)
+	assetName := archiveName("1.2.3", runtime.GOOS, runtime.GOARCH)
 
 	client := testClient(func(request *http.Request) (string, int) {
 		switch request.URL.Path {
